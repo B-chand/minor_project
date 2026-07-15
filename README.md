@@ -1,81 +1,300 @@
 # AI-Powered Smart Multi-Tenant Inventory Management Solution
 
 ![Project Status](https://img.shields.io/badge/status-under%20development-orange)
-![Technology](https://img.shields.io/badge/technology-AI%20%7C%20Web-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-
-## 📌 Overview
-
-The **AI-Powered Smart Multi-Tenant Inventory Management Solution** is a modern web-based inventory management system designed to help multiple organizations efficiently manage their inventory while maintaining complete data isolation between tenants.
-
-The system leverages Artificial Intelligence to provide intelligent inventory insights, demand prediction, anomaly detection, and automated decision support. It follows a **multi-tenant SaaS architecture**, allowing multiple independent businesses to use a single platform securely.
-
-The goal of this project is to develop a scalable, secure, and intelligent inventory management platform that reduces manual effort, minimizes stock-related issues, and improves business decision-making.
+![Frontend](https://img.shields.io/badge/frontend-React.js-blue)
+![Backend](https://img.shields.io/badge/backend-Django%20%7C%20DRF-green)
+![Database](https://img.shields.io/badge/database-PostgreSQL-blueviolet)
+![AI](https://img.shields.io/badge/AI-Machine%20Learning-red)
 
 ---
 
-# ✨ Features
+# 📌 Overview
 
-## 🔐 Multi-Tenant Architecture
+The **AI-Powered Smart Multi-Tenant Inventory Management Solution** is a modern SaaS-style web application designed to help multiple independent organizations manage their business operations through a single intelligent platform.
 
-- Support for multiple independent organizations (tenants)
-- Complete data isolation between tenants
-- Tenant-specific users, roles, products, and transactions
-- Secure tenant-aware database operations
+Unlike traditional inventory systems, this project combines:
 
----
+- Secure multi-tenant architecture
+- Inventory and business management
+- AI-powered analytics and recommendations
+- Automated operational workflows
 
-## 📦 Inventory Management
+Each organization (tenant) can independently manage its:
 
-- Product catalog management
-- Stock quantity tracking
-- Category and supplier management
-- Stock-in and stock-out operations
-- Inventory history tracking
-- Low-stock monitoring
+- Products
+- Categories
+- Inventory
+- Suppliers
+- Customers
+- Purchases
+- Sales
+- Billing
+- Employees
+- Reports
 
----
+while ensuring complete data isolation and security from other organizations.
 
-## 👥 User & Role Management
-
-- Authentication and authorization
-- Role-Based Access Control (RBAC)
-- Multiple user roles:
-  - System Administrator
-  - Tenant Administrator
-  - Inventory Manager
-  - Staff/User
+The system aims to improve business efficiency by providing intelligent insights, predictive analysis, and AI-assisted decision-making.
 
 ---
 
-## 🤖 AI-Powered Features
+# 🎯 Project Objectives
 
-### Smart Demand Prediction
+The main objectives of this project are:
 
-Predict future product demand using historical inventory and sales data.
+- Build a scalable multi-tenant SaaS inventory platform
+- Maintain complete tenant-level data isolation
+- Provide secure authentication and authorization
+- Automate inventory and business operations
+- Integrate practical AI capabilities
+- Improve decision-making using intelligent insights
+- Follow modern software engineering practices
+
+---
+
+# ✨ Key Features
+
+## 🏢 Multi-Tenant Architecture
+
+The system supports multiple independent organizations using the same application.
+
+Each tenant has isolated access to:
+
+- Users
+- Products
+- Inventory
+- Customers
+- Suppliers
+- Purchases
+- Sales
+- Reports
+- Analytics
+
+### Multi-Tenant Security Rules
+
+Every operation ensures:
+
+- A tenant can only access its own data
+- APIs are tenant-aware
+- Database queries enforce isolation
+- Permissions are role-based
+
+Tenant isolation is the core design principle of this project.
+
+---
+
+# 🔐 Authentication & Authorization
+
+The system uses secure JWT-based authentication.
+
+## User Roles
+
+### Super Administrator
+
+Responsible for:
+
+- Managing the platform
+- Managing organizations
+- Monitoring system activity
+
+### Business Administrator
+
+Responsible for:
+
+- Managing organization operations
+- Managing users
+- Managing inventory and reports
+
+### Staff
+
+Responsible for:
+
+- Daily inventory operations
+- Sales and purchase activities
+- Viewing assigned information
+
+Authorization is enforced using Role-Based Access Control (RBAC).
+
+---
+
+# 📦 Inventory Management Module
+
+The inventory module provides complete stock management.
+
+## Features
+
+- Product Management
+- Category Management
+- Stock In
+- Stock Out
+- Inventory Tracking
+- Stock History
+- Low Stock Alerts
+- Barcode/QR Code Support
+- Advanced Search and Filtering
+
+Inventory automatically updates after:
+
+- Purchases
+- Sales
+- Stock adjustments
+
+---
+
+# 🛒 Purchase Management
+
+Manages supplier-related operations.
+
+Features:
+
+- Supplier management
+- Purchase orders
+- Purchase records
+- Automatic inventory updates
+- Purchase reports
+
+---
+
+# 💰 Sales Management
+
+Handles customer transactions.
+
+Features:
+
+- Customer management
+- Sales orders
+- Billing
+- Invoice generation
+- Automatic stock deduction
+- Sales analytics
+
+---
+
+# 👥 Business Management Modules
+
+The system includes:
+
+## Customer Management
+
+- Customer profiles
+- Purchase history
+- Customer reports
+
+## Supplier Management
+
+- Supplier information
+- Purchase tracking
+
+## Employee Management
+
+- Employee records
+- Role assignment
+- Access management
+
+## Audit Logs
+
+Tracks:
+
+- User activities
+- Inventory changes
+- Business operations
+
+---
+
+# 🤖 AI-Powered Features
+
+The system integrates practical AI features to support better business decisions.
+
+---
+
+## 📈 Demand Forecasting
+
+Predicts future product demand using historical sales and inventory data.
 
 Benefits:
 
-- Prevent overstocking
-- Reduce stock shortages
-- Improve purchasing decisions
+- Prevent stock shortages
+- Reduce overstocking
+- Improve inventory planning
 
-### Intelligent Stock Alerts
+Possible approaches:
 
-AI-based monitoring identifies:
+- Time-series forecasting
+- Regression models
+- Statistical forecasting methods
 
-- Low inventory conditions
-- Unusual stock changes
-- Potential inventory risks
+---
 
-### Inventory Analytics
+## 📦 Smart Restock Recommendation
 
-Provides intelligent insights through:
+Provides intelligent recommendations for:
+
+- When to reorder products
+- Recommended stock quantity
+- Priority items
+
+Based on:
 
 - Sales trends
-- Stock movement analysis
-- Product performance evaluation
-- Business recommendations
+- Current inventory
+- Demand patterns
+
+---
+
+## 📊 Sales Trend Analysis
+
+Analyzes business data to identify:
+
+- Best-selling products
+- Sales patterns
+- Growth trends
+- Product performance
+
+---
+
+## 📝 AI Inventory Summary
+
+Generates human-readable business insights such as:
+
+- Current inventory condition
+- Risky products
+- Sales performance summary
+- Recommended actions
+
+---
+
+## 💬 AI Inventory Assistant
+
+A natural language assistant allowing users to ask questions like:
+
+Example:
+
+> "Which products are running low?"
+
+> "Show me the best-selling products this month."
+
+> "Which items should I restock?"
+
+The assistant converts user queries into useful inventory insights.
+
+---
+
+# 📊 Dashboard & Analytics
+
+The system provides a business dashboard containing:
+
+- Inventory overview
+- Sales analytics
+- Purchase analytics
+- Stock alerts
+- AI insights
+- Charts and reports
+
+Additional features:
+
+- PDF Export
+- Excel Export
+- Business Reports
 
 ---
 
@@ -85,16 +304,21 @@ Provides intelligent insights through:
                     Users
                       |
                       |
-              Web Application
+              React Frontend
                       |
-          ------------------------
-          |                      |
-      Backend API            AI Engine
-          |                      |
-          |                      |
-          ------------------------
                       |
-                Database Layer
+              REST API Layer
+                      |
+                      |
+        Django + Django REST Framework
+                      |
+          -------------------------
+          |                       |
+     Business Logic          AI Engine
+          |                       |
+          -------------------------
+                      |
+                PostgreSQL Database
                       |
               Tenant Data Isolation
 ```
@@ -105,140 +329,92 @@ Provides intelligent insights through:
 
 ## Frontend
 
-- React.js / Next.js
+- React.js
+- JavaScript / TypeScript
 - HTML5
 - CSS3
-- JavaScript / TypeScript
-- Responsive UI Framework
+- Modern UI Components
+
+---
 
 ## Backend
 
-- Node.js
-- Express.js
+- Django
+- Django REST Framework
 - RESTful API Architecture
 - JWT Authentication
-- Role-Based Authorization
+
+---
 
 ## Database
 
-- PostgreSQL / MySQL
-- Prisma / Sequelize ORM
+- PostgreSQL
 
-Database supports:
+Database design follows:
 
-- Tenant isolation
-- User management
-- Inventory records
-- Transaction history
+- Normalization principles
+- Tenant-aware schema design
+- Secure data relationships
+
+---
 
 ## Artificial Intelligence
 
 Technologies:
 
 - Python
-- Machine Learning Models
 - Scikit-learn
 - Pandas
 - NumPy
 
-AI capabilities:
+AI models focus on:
 
-- Demand forecasting
-- Trend analysis
-- Anomaly detection
+- Forecasting
+- Recommendation
+- Analytics
+- Business insights
 
 ---
 
 # 📂 Project Structure
 
 ```
-inventory-management-system/
+AI-Inventory-Management-System/
 
 │
 ├── frontend/
+│   ├── src/
 │   ├── components/
 │   ├── pages/
 │   ├── services/
-│   └── assets/
+│   └── utils/
 │
 ├── backend/
-│   ├── controllers/
-│   ├── routes/
+│   ├── apps/
+│   │   ├── accounts/
+│   │   ├── tenants/
+│   │   ├── inventory/
+│   │   ├── sales/
+│   │   ├── purchases/
+│   │   └── reports/
+│   │
+│   ├── api/
 │   ├── middleware/
-│   ├── models/
-│   └── services/
+│   ├── settings/
+│   └── manage.py
 │
 ├── ai-engine/
-│   ├── models/
-│   ├── training/
-│   └── predictions/
+│   ├── forecasting/
+│   ├── recommendation/
+│   ├── analytics/
+│   └── models/
 │
 ├── database/
-│   ├── migrations/
-│   └── schema/
 │
-├── docs/
+├── documentation/
 │
-├── README.md
-└── .env.example
+└── README.md
 ```
-
----
-
-# 🔑 Core Modules
-
-## 1. Authentication Module
-
-Responsible for:
-
-- User registration
-- Login
-- JWT token management
-- Permission handling
-
----
-
-## 2. Tenant Management Module
-
-Handles:
-
-- Organization creation
-- Tenant configuration
-- Tenant-level security
-- Data separation
-
----
-
-## 3. Inventory Module
-
-Manages:
-
-- Products
-- Categories
-- Suppliers
-- Stock transactions
-- Inventory tracking
-
----
-
-## 4. AI Intelligence Module
-
-Provides:
-
-- Demand forecasting
-- Smart recommendations
-- Inventory optimization
-- Predictive analytics
-
----
-
-## 5. Reporting Module
-
-Generates:
-
-- Inventory reports
-- Analytics dashboards
-- Business insights
 
 ---
 
@@ -246,72 +422,28 @@ Generates:
 
 ## Prerequisites
 
-Install the following:
+Install:
 
-- Node.js >= 18
-- PostgreSQL/MySQL
 - Python >= 3.10
+- Node.js >= 18
+- PostgreSQL
 - Git
-
----
-
-## Clone Repository
-
-```bash
-git clone https://github.com/your-username/inventory-management-system.git
-
-cd inventory-management-system
-```
 
 ---
 
 # Backend Setup
 
-```bash
-cd backend
-
-npm install
-```
-
-Create environment file:
+Clone repository:
 
 ```bash
-cp .env.example .env
+git clone https://github.com/your-username/AI-Inventory-Management-System.git
+
+cd AI-Inventory-Management-System/backend
 ```
 
-Configure environment variables:
-
-```env
-DATABASE_URL=
-JWT_SECRET=
-PORT=
-```
-
-Run backend:
+Create virtual environment:
 
 ```bash
-npm run dev
-```
-
----
-
-# Frontend Setup
-
-```bash
-cd frontend
-
-npm install
-
-npm run dev
-```
-
----
-
-# AI Engine Setup
-
-```bash
-cd ai-engine
-
 python -m venv venv
 ```
 
@@ -335,10 +467,40 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Run AI service:
+Configure environment:
+
+```
+DATABASE_NAME=
+DATABASE_USER=
+DATABASE_PASSWORD=
+DATABASE_HOST=
+DATABASE_PORT=
+
+JWT_SECRET_KEY=
+```
+
+Run migrations:
 
 ```bash
-python main.py
+python manage.py migrate
+```
+
+Start server:
+
+```bash
+python manage.py runserver
+```
+
+---
+
+# Frontend Setup
+
+```bash
+cd frontend
+
+npm install
+
+npm run dev
 ```
 
 ---
@@ -347,46 +509,50 @@ python main.py
 
 The system implements:
 
-- JWT-based authentication
-- Password encryption
-- Role-based access control
-- Tenant-aware database queries
-- API request validation
-- Secure environment configuration
+- JWT Authentication
+- Role-Based Access Control
+- Tenant-aware middleware
+- Secure API authorization
+- Password hashing
+- Input validation
+- Protected database queries
 
 ---
 
-# 📊 Future Enhancements
+# 🧠 Software Engineering Practices
 
-- Real-time inventory monitoring
-- Barcode and QR code integration
-- Mobile application support
+The project follows:
+
+- Clean Code principles
+- Modular architecture
+- Reusable components
+- REST API standards
+- Database normalization
+- Separation of concerns
+- Scalable design patterns
+
+---
+
+# 🚀 Future Enhancements
+
+Possible future improvements:
+
+- Docker deployment
+- Cloud hosting
+- Mobile application
+- Real-time inventory tracking
+- IoT warehouse integration
 - Advanced AI recommendation engine
-- Automated purchase order generation
-- Cloud deployment
-- IoT-based warehouse monitoring
 - Voice-based inventory assistant
+- Automated purchase ordering
 
 ---
 
-# 🎯 Objectives
+# 👨‍💻 Academic Project
 
-The project aims to:
+## Computer Engineering Minor Project
 
-- Build a scalable SaaS inventory platform
-- Implement secure multi-tenancy
-- Integrate AI into inventory operations
-- Improve inventory accuracy
-- Reduce operational costs
-- Provide intelligent decision support
-
----
-
-# 👨‍💻 Development Team
-
-**Computer Engineering Minor Project**
-
-Project Title:
+### Project Title
 
 **AI-Powered Smart Multi-Tenant Inventory Management Solution**
 
