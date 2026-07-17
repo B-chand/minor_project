@@ -48,3 +48,17 @@ class IsOrganizationMember(BasePermission):
             request.user.is_authenticated
             and request.user.organization is not None
         )
+class IsAdminOrSuperAdmin(BasePermission):
+    """
+    Allows access to Super Admin and Business Admin users.
+    """
+
+    def has_permission(self, request, view):
+
+        return (
+            request.user.is_authenticated
+            and request.user.role in [
+                "SUPER_ADMIN",
+                "ADMIN",
+            ]
+        )

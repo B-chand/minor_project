@@ -4,7 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 
 class TenantModelViewSet(viewsets.ModelViewSet):
     """
-    Base ViewSet for all tenant-owned models.
+    Base ViewSet for tenant-owned models.
+    Automatically filters by organization when applicable.
     """
 
     permission_classes = [IsAuthenticated]
@@ -15,11 +16,21 @@ class TenantModelViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return self.queryset
 
-        return self.queryset.filter(
-            organization=user.organization
-        )
+        model = self.queryset.model
+
+        if hasattr(model, "organization"):
+            return self.queryset.filter(
+                organization=user.organization
+            )
+
+        return self.queryset
 
     def perform_create(self, serializer):
-        serializer.save(
-            organization=self.request.user.organization
-        )
+        model = serializer.Meta.model
+
+        if hasattr(model, "organization"):
+            serializer.save(
+                organization=self.request.user.organization
+            )
+        else:
+            serializer.save()
