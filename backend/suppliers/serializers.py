@@ -15,3 +15,51 @@ class SupplierSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    def validate_email(self, value):
+
+        if not value:
+            return value
+
+        request = self.context["request"]
+
+        queryset = Supplier.objects.filter(
+            organization=request.user.organization,
+            email=value
+        )
+
+        if self.instance:
+            queryset = queryset.exclude(
+                pk=self.instance.pk
+            )
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "A supplier with this email already exists."
+            )
+
+        return value
+
+    def validate_phone(self, value):
+
+        if not value:
+            return value
+
+        request = self.context["request"]
+
+        queryset = Supplier.objects.filter(
+            organization=request.user.organization,
+            phone=value
+        )
+
+        if self.instance:
+            queryset = queryset.exclude(
+                pk=self.instance.pk
+            )
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "A supplier with this phone number already exists."
+            )
+
+        return value

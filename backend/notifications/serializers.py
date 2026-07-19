@@ -5,13 +5,12 @@ from .models import Notification
 
 class NotificationSerializer(serializers.ModelSerializer):
 
-    user_name = serializers.ReadOnlyField(
+    created_for_name = serializers.ReadOnlyField(
         source="created_for.username"
     )
 
     class Meta:
         model = Notification
-
         fields = "__all__"
 
         read_only_fields = (

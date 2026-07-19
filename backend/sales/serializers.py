@@ -7,6 +7,8 @@ from .models import (
     SaleItem,
 )
 
+from notifications.services import create_notification
+
 
 class SaleItemSerializer(serializers.ModelSerializer):
 
@@ -26,11 +28,11 @@ class SaleItemSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
 
         from django.db import transaction
+
         from inventory.models import (
             Inventory,
             StockMovement,
         )
-        from rest_framework.exceptions import ValidationError
 
 
         sale = validated_data["sale"]
@@ -41,21 +43,30 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
         # Check inventory exists
         try:
+
             inventory = Inventory.objects.get(
                 product=product,
                 organization=sale.organization
             )
 
         except Inventory.DoesNotExist:
-            raise ValidationError(
-                "Inventory record does not exist for this product."
+
+            raise serializers.ValidationError(
+                {
+                    "product":
+                    "Inventory record does not exist for this product."
+                }
             )
 
 
         # Check available stock
         if inventory.quantity < quantity:
-            raise ValidationError(
-                f"Not enough stock. Available quantity: {inventory.quantity}"
+
+            raise serializers.ValidationError(
+                {
+                    "quantity":
+                    f"Only {inventory.quantity} items are available in stock."
+                }
             )
 
 
@@ -66,6 +77,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
 
         with transaction.atomic():
+
 
             # Create Sale Item
             sale_item = super().create(
@@ -78,6 +90,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
                 item.subtotal
                 for item in sale.items.all()
             )
+
 
             sale.total_amount = total
 
@@ -107,6 +120,54 @@ class SaleItemSerializer(serializers.ModelSerializer):
                 remarks="Sale stock removed",
                 created_by=self.context["request"].user
             )
+
+
+            # ==========================
+            # SALE NOTIFICATION
+            # ==========================
+
+            create_notification(
+                organization=sale.organization,
+                user=self.context["request"].user,
+                title="Sale Completed",
+                message=(
+                    f"{quantity} units of {product.name} "
+                    "sold successfully."
+                ),
+                notification_type="SALE"
+            )
+
+
+            # ==========================
+            # STOCK ALERTS
+            # ==========================
+
+            if inventory.quantity == 0:
+
+                create_notification(
+                    organization=sale.organization,
+                    user=self.context["request"].user,
+                    title="Out of Stock",
+                    message=f"{product.name} is now out of stock.",
+                    notification_type="OUT_OF_STOCK"
+                )
+
+
+            elif (
+                hasattr(product, "minimum_stock")
+                and inventory.quantity <= product.minimum_stock
+            ):
+
+                create_notification(
+                    organization=sale.organization,
+                    user=self.context["request"].user,
+                    title="Low Stock Alert",
+                    message=(
+                        f"{product.name} stock is low. "
+                        f"Remaining quantity: {inventory.quantity}"
+                    ),
+                    notification_type="LOW_STOCK"
+                )
 
 
         return sale_item
@@ -139,3 +200,31 @@ class SaleSerializer(serializers.ModelSerializer):
             "updated_at",
             "total_amount",
         )
+
+
+    def validate_invoice_number(self, value):
+
+        request = self.context["request"]
+
+
+        queryset = Sale.objects.filter(
+            organization=request.user.organization,
+            invoice_number=value
+        )
+
+
+        if self.instance:
+
+            queryset = queryset.exclude(
+                pk=self.instance.pk
+            )
+
+
+        if queryset.exists():
+
+            raise serializers.ValidationError(
+                "A sale with this invoice number already exists."
+            )
+
+
+        return value

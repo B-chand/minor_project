@@ -28,25 +28,38 @@ class ReportViewSet(TenantModelViewSet):
         Dashboard summary report.
         """
 
-        total_products = Product.objects.count()
+        organization = request.user.organization
 
-        total_customers = Customer.objects.count()
+        total_products = Product.objects.filter(
+            organization=organization
+        ).count()
 
-        total_suppliers = Supplier.objects.count()
+        total_customers = Customer.objects.filter(
+            organization=organization
+        ).count()
+
+        total_suppliers = Supplier.objects.filter(
+            organization=organization
+        ).count()
 
         total_sales = (
-            Sale.objects.aggregate(
+            Sale.objects.filter(
+                organization=organization
+            ).aggregate(
                 total=Sum("total_amount")
             )["total"] or 0
         )
 
         total_purchases = (
-            Purchase.objects.aggregate(
+            Purchase.objects.filter(
+                organization=organization
+            ).aggregate(
                 total=Sum("total_amount")
             )["total"] or 0
         )
 
         low_stock_products = Inventory.objects.filter(
+            organization=organization,
             quantity__lte=10
         ).count()
 
@@ -67,7 +80,9 @@ class ReportViewSet(TenantModelViewSet):
         Sales report.
         """
 
-        sales = Sale.objects.all()
+        sales = Sale.objects.filter(
+            organization=request.user.organization
+        )
 
         data = []
 
@@ -95,6 +110,7 @@ class ReportViewSet(TenantModelViewSet):
         """
 
         inventory = Inventory.objects.filter(
+            organization=request.user.organization,
             quantity__lte=10
         )
 

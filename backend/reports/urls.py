@@ -6,13 +6,11 @@ from .views import ReportViewSet
 
 router = DefaultRouter()
 
-
 router.register(
     "reports",
     ReportViewSet,
     basename="report",
 )
-
 
 urlpatterns = [
     path(

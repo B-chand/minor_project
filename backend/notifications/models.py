@@ -10,9 +10,10 @@ class Notification(TenantModel):
 
     TYPE_CHOICES = (
         ("LOW_STOCK", "Low Stock"),
-        ("SYSTEM", "System"),
+        ("OUT_OF_STOCK", "Out of Stock"),
         ("SALE", "Sale"),
         ("PURCHASE", "Purchase"),
+        ("SYSTEM", "System"),
         ("AI", "AI Recommendation"),
     )
 
@@ -40,12 +41,10 @@ class Notification(TenantModel):
         related_name="notifications"
     )
 
-
     class Meta:
         ordering = [
             "-created_at"
         ]
-
 
     def __str__(self):
         return self.title

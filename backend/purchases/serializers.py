@@ -7,6 +7,8 @@ from .models import (
     PurchaseItem,
 )
 
+from notifications.services import create_notification
+
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
 
@@ -49,8 +51,11 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
         )
 
         purchase.total_amount = total
+
         purchase.save(
-            update_fields=["total_amount"]
+            update_fields=[
+                "total_amount"
+            ]
         )
 
         # Update Inventory quantity
@@ -70,6 +75,7 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
             ]
         )
 
+
         # Create Stock Movement history
         StockMovement.objects.create(
             product=product,
@@ -80,7 +86,54 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
             created_by=self.context["request"].user
         )
 
+
+        # ==============================
+        # PURCHASE NOTIFICATION
+        # ==============================
+
+        create_notification(
+            organization=purchase.organization,
+            user=self.context["request"].user,
+            title="Purchase Completed",
+            message=f"{quantity} units of {product.name} added through purchase.",
+            notification_type="PURCHASE"
+        )
+
+
+        # ==============================
+        # STOCK ALERT NOTIFICATION
+        # ==============================
+
+        if inventory.quantity == 0:
+
+            create_notification(
+                organization=purchase.organization,
+                user=self.context["request"].user,
+                title="Out of Stock",
+                message=f"{product.name} is out of stock.",
+                notification_type="OUT_OF_STOCK"
+            )
+
+
+        elif (
+            hasattr(product, "minimum_stock")
+            and inventory.quantity <= product.minimum_stock
+        ):
+
+            create_notification(
+                organization=purchase.organization,
+                user=self.context["request"].user,
+                title="Low Stock Alert",
+                message=(
+                    f"{product.name} stock is low. "
+                    f"Current quantity: {inventory.quantity}"
+                ),
+                notification_type="LOW_STOCK"
+            )
+
+
         return purchase_item
+
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -94,8 +147,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
+
     class Meta:
         model = Purchase
+
         fields = "__all__"
 
         read_only_fields = (
@@ -105,3 +160,27 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "updated_at",
             "total_amount",
         )
+
+
+    def validate_invoice_number(self, value):
+
+        request = self.context["request"]
+
+        queryset = Purchase.objects.filter(
+            organization=request.user.organization,
+            invoice_number=value
+        )
+
+        if self.instance:
+
+            queryset = queryset.exclude(
+                pk=self.instance.pk
+            )
+
+        if queryset.exists():
+
+            raise serializers.ValidationError(
+                "A purchase with this invoice number already exists."
+            )
+
+        return value
