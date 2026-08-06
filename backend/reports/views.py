@@ -1,4 +1,5 @@
 from django.db.models import Sum
+
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -12,6 +13,7 @@ from customers.models import Customer
 from suppliers.models import Supplier
 from sales.models import Sale
 from purchases.models import Purchase
+from notifications.models import Notification
 
 
 class ReportViewSet(TenantModelViewSet):
@@ -60,7 +62,18 @@ class ReportViewSet(TenantModelViewSet):
 
         low_stock_products = Inventory.objects.filter(
             organization=organization,
-            quantity__lte=10
+            quantity__lte=10,
+            quantity__gt=0
+        ).count()
+
+        out_of_stock_products = Inventory.objects.filter(
+            organization=organization,
+            quantity=0
+        ).count()
+
+        unread_notifications = Notification.objects.filter(
+            organization=organization,
+            is_read=False
         ).count()
 
         return Response(
@@ -71,6 +84,8 @@ class ReportViewSet(TenantModelViewSet):
                 "total_sales": total_sales,
                 "total_purchases": total_purchases,
                 "low_stock_products": low_stock_products,
+                "out_of_stock_products": out_of_stock_products,
+                "unread_notifications": unread_notifications,
             }
         )
 
