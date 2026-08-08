@@ -11,3 +11,10 @@ class CustomerViewSet(TenantModelViewSet):
 
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
+    search_fields = [
+        "first_name",
+        "last_name",
+        "phone",
+        "email",
+        "address",
+    ]

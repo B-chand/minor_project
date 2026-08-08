@@ -25,8 +25,7 @@ class Sale(TenantModel):
     )
 
     invoice_number = models.CharField(
-        max_length=100,
-        unique=True
+        max_length=100
     )
 
     sale_date = models.DateField()
@@ -50,6 +49,12 @@ class Sale(TenantModel):
 
     class Meta:
         ordering = ["-sale_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "invoice_number"],
+                name="uniq_sale_invoice_per_org"
+            )
+        ]
 
 
     def __str__(self):

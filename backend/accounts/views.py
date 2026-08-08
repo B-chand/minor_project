@@ -42,5 +42,7 @@ class StaffViewSet(TenantModelViewSet):
         IsAdminOrSuperAdmin
     ]
 
-    queryset = User.objects.filter(role="STAFF")
+    queryset = User.objects.filter(
+        role="STAFF"
+    ).order_by("created_at")
     serializer_class = StaffSerializer

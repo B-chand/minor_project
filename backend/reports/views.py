@@ -1,7 +1,8 @@
-from django.db.models import Sum
+from django.db.models import Sum, F
 
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from core.mixins import TenantModelViewSet
 
@@ -23,6 +24,21 @@ class ReportViewSet(TenantModelViewSet):
 
     queryset = Report.objects.all()
     serializer_class = ReportSerializer
+
+    def perform_create(self, serializer):
+        organization = getattr(self.request.user, "organization", None)
+        if not organization:
+            raise ValidationError(
+                {
+                    "organization": (
+                        "The authenticated user is not assigned to an organization."
+                    )
+                }
+            )
+        serializer.save(
+            organization=organization,
+            generated_by=self.request.user,
+        )
 
     @action(detail=False, methods=["get"], url_path="dashboard")
     def dashboard(self, request):
@@ -62,7 +78,7 @@ class ReportViewSet(TenantModelViewSet):
 
         low_stock_products = Inventory.objects.filter(
             organization=organization,
-            quantity__lte=10,
+            quantity__lte=F("minimum_stock"),
             quantity__gt=0
         ).count()
 
@@ -126,7 +142,7 @@ class ReportViewSet(TenantModelViewSet):
 
         inventory = Inventory.objects.filter(
             organization=request.user.organization,
-            quantity__lte=10
+            quantity__lte=F("minimum_stock")
         )
 
         data = []

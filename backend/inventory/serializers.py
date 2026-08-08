@@ -45,7 +45,7 @@ class ProductSerializer(serializers.ModelSerializer):
         buying_price = attrs.get("buying_price")
         selling_price = attrs.get("selling_price")
 
-        if buying_price <= 0:
+        if buying_price is not None and buying_price <= 0:
             raise serializers.ValidationError(
                 {
                     "buying_price":
@@ -53,7 +53,7 @@ class ProductSerializer(serializers.ModelSerializer):
                 }
             )
 
-        if selling_price <= 0:
+        if selling_price is not None and selling_price <= 0:
             raise serializers.ValidationError(
                 {
                     "selling_price":
@@ -61,7 +61,11 @@ class ProductSerializer(serializers.ModelSerializer):
                 }
             )
 
-        if selling_price < buying_price:
+        if (
+            buying_price is not None
+            and selling_price is not None
+            and selling_price < buying_price
+        ):
             raise serializers.ValidationError(
                 {
                     "selling_price":

@@ -1,10 +1,24 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+
+
+class HealthCheckView(APIView):
+    """Simple health check endpoint."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        return Response({"status": "ok"})
 
 
 urlpatterns = [
@@ -13,6 +27,12 @@ urlpatterns = [
     path(
         "admin/",
         admin.site.urls,
+    ),
+
+    path(
+        "api/health/",
+        HealthCheckView.as_view(),
+        name="health",
     ),
 
 

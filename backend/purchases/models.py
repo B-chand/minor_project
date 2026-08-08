@@ -20,8 +20,7 @@ class Purchase(TenantModel):
     )
 
     invoice_number = models.CharField(
-        max_length=100,
-        unique=True
+        max_length=100
     )
 
     purchase_date = models.DateField()
@@ -42,6 +41,12 @@ class Purchase(TenantModel):
 
     class Meta:
         ordering = ["-purchase_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "invoice_number"],
+                name="uniq_purchase_invoice_per_org"
+            )
+        ]
 
     def __str__(self):
         return self.invoice_number

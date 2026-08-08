@@ -18,6 +18,9 @@ media/
 # Static
 staticfiles/
 
+# Logs
+backend/logs/
+
 # IDE
 .vscode/
 .idea/

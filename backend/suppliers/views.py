@@ -8,4 +8,11 @@ class SupplierViewSet(TenantModelViewSet):
 
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+    search_fields = [
+        "name",
+        "contact_person",
+        "phone",
+        "email",
+        "address",
+    ]
     

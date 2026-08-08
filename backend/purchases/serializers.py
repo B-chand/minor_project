@@ -26,6 +26,8 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
 
+        from django.db import transaction
+
         from inventory.models import (
             Inventory,
             StockMovement,
@@ -41,96 +43,90 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
             Decimal(quantity) * unit_price
         )
 
-        # Create Purchase Item
-        purchase_item = super().create(validated_data)
+        with transaction.atomic():
+            # Create Purchase Item
+            purchase_item = super().create(validated_data)
 
-        # Update Purchase total amount
-        total = sum(
-            item.subtotal
-            for item in purchase.items.all()
-        )
+            # Update Purchase total amount
+            total = sum(
+                item.subtotal
+                for item in purchase.items.all()
+            )
 
-        purchase.total_amount = total
+            purchase.total_amount = total
 
-        purchase.save(
-            update_fields=[
-                "total_amount"
-            ]
-        )
+            purchase.save(
+                update_fields=[
+                    "total_amount"
+                ]
+            )
 
-        # Update Inventory quantity
-        inventory, created = Inventory.objects.get_or_create(
-            product=product,
-            organization=purchase.organization,
-            defaults={
-                "quantity": 0
-            }
-        )
+            # Update Inventory quantity
+            inventory, created = Inventory.objects.get_or_create(
+                product=product,
+                organization=purchase.organization,
+                defaults={
+                    "quantity": 0
+                }
+            )
 
-        inventory.quantity += quantity
+            inventory.quantity += quantity
 
-        inventory.save(
-            update_fields=[
-                "quantity"
-            ]
-        )
+            inventory.save(
+                update_fields=[
+                    "quantity"
+                ]
+            )
 
+            # Create Stock Movement history
+            StockMovement.objects.create(
+                product=product,
+                organization=purchase.organization,
+                movement_type="IN",
+                quantity=quantity,
+                remarks="Purchase stock added",
+                created_by=self.context["request"].user
+            )
 
-        # Create Stock Movement history
-        StockMovement.objects.create(
-            product=product,
-            organization=purchase.organization,
-            movement_type="IN",
-            quantity=quantity,
-            remarks="Purchase stock added",
-            created_by=self.context["request"].user
-        )
-
-
-        # ==============================
-        # PURCHASE NOTIFICATION
-        # ==============================
-
-        create_notification(
-            organization=purchase.organization,
-            user=self.context["request"].user,
-            title="Purchase Completed",
-            message=f"{quantity} units of {product.name} added through purchase.",
-            notification_type="PURCHASE"
-        )
-
-
-        # ==============================
-        # STOCK ALERT NOTIFICATION
-        # ==============================
-
-        if inventory.quantity == 0:
+            # ==============================
+            # PURCHASE NOTIFICATION
+            # ==============================
 
             create_notification(
                 organization=purchase.organization,
                 user=self.context["request"].user,
-                title="Out of Stock",
-                message=f"{product.name} is out of stock.",
-                notification_type="OUT_OF_STOCK"
+                title="Purchase Completed",
+                message=f"{quantity} units of {product.name} added through purchase.",
+                notification_type="PURCHASE"
             )
 
+            # ==============================
+            # STOCK ALERT NOTIFICATION
+            # ==============================
 
-        elif (
-            hasattr(product, "minimum_stock")
-            and inventory.quantity <= product.minimum_stock
-        ):
+            if inventory.quantity == 0:
 
-            create_notification(
-                organization=purchase.organization,
-                user=self.context["request"].user,
-                title="Low Stock Alert",
-                message=(
-                    f"{product.name} stock is low. "
-                    f"Current quantity: {inventory.quantity}"
-                ),
-                notification_type="LOW_STOCK"
-            )
+                create_notification(
+                    organization=purchase.organization,
+                    user=self.context["request"].user,
+                    title="Out of Stock",
+                    message=f"{product.name} is out of stock.",
+                    notification_type="OUT_OF_STOCK"
+                )
 
+
+            elif inventory.quantity <= inventory.minimum_stock:
+
+                create_notification(
+                    organization=purchase.organization,
+                    user=self.context["request"].user,
+                    title="Low Stock Alert",
+                    message=(
+                        f"{product.name} stock is low. "
+                        f"Current quantity: {inventory.quantity}"
+                    ),
+                    notification_type="LOW_STOCK"
+                )
 
         return purchase_item
 

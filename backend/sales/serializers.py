@@ -153,10 +153,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
                 )
 
 
-            elif (
-                hasattr(product, "minimum_stock")
-                and inventory.quantity <= product.minimum_stock
-            ):
+            elif inventory.quantity <= inventory.minimum_stock:
 
                 create_notification(
                     organization=sale.organization,

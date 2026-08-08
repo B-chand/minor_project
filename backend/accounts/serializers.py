@@ -10,17 +10,22 @@ class RegisterSerializer(serializers.ModelSerializer):
     """
 
     organization_name = serializers.CharField(
-        max_length=255
+        max_length=255,
+        write_only=True
     )
 
-    organization_email = serializers.EmailField()
+    organization_email = serializers.EmailField(
+        write_only=True
+    )
 
     organization_phone = serializers.CharField(
-        max_length=20
+        max_length=20,
+        write_only=True
     )
 
     organization_address = serializers.CharField(
-        required=False
+        required=False,
+        write_only=True
     )
 
     password = serializers.CharField(
@@ -40,6 +45,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             "organization_phone",
             "organization_address",
         ]
+
+    def validate_organization_email(self, value):
+        if Organization.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "An organization with this email already exists."
+            )
+        return value
 
     def create(self, validated_data):
 
@@ -153,3 +165,15 @@ class StaffSerializer(serializers.ModelSerializer):
         )
 
         return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
