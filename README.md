@@ -1,565 +1,454 @@
-# AI-Powered Smart Multi-Tenant Inventory Management Solution
+     # Invento:Smart Multi-Tenant Inventory Management Solution
 
-![Project Status](https://img.shields.io/badge/status-under%20development-orange)
-![Frontend](https://img.shields.io/badge/frontend-React.js-blue)
-![Backend](https://img.shields.io/badge/backend-Django%20%7C%20DRF-green)
-![Database](https://img.shields.io/badge/database-PostgreSQL-blueviolet)
-![AI](https://img.shields.io/badge/AI-Machine%20Learning-red)
+     ![Project Status](https://img.shields.io/badge/status-active-brightgreen)
+     ![Frontend](https://img.shields.io/badge/frontend-React%2019%20%7C%20Vite-blue)
+     ![Backend](https://img.shields.io/badge/backend-Django%206%20%7C%20DRF-green)
+     ![Database](https://img.shields.io/badge/database-PostgreSQL-blueviolet)
+     ![AI](https://img.shields.io/badge/AI-Groq%20%7C%20Scikit--learn-red)
 
----
+     **INVENTO** is a SaaS-style, AI-powered inventory and business management platform. The repository lives at <https://github.com/B-chand/minor_project>.
 
-# 📌 Overview
+     ---
 
-The **AI-Powered Smart Multi-Tenant Inventory Management Solution** is a modern SaaS-style web application designed to help multiple independent organizations manage their business operations through a single intelligent platform.
+     ## 📌 Overview
 
-Unlike traditional inventory systems, this project combines:
+     INVENTO is a **multi-tenant inventory management solution**: multiple independent organizations run on the *same* application instance while each organization's data stays completely isolated. An organization registering for the platform is provisioned as its own **tenant** and is assigned a unique **Business Code** (e.g. `B1`, `B2`) used at login.
 
-- Secure multi-tenant architecture
-- Inventory and business management
-- AI-powered analytics and recommendations
-- Automated operational workflows
+     Within a tenant, the platform covers the full day-to-day business surface:
 
-Each organization (tenant) can independently manage its:
+     - **Products, categories and inventory** with stock movement history
+     - **Suppliers and purchases** that restock inventory
+     - **Customers and sales** that automatically deduct inventory
+     - **Staff management** with role-based access
+     - **Notifications**, **reports**, and a business **dashboard**
+     - **AI-powered** forecasting, recommendations, insights and a chat assistant
 
-- Products
-- Categories
-- Inventory
-- Suppliers
-- Customers
-- Purchases
-- Sales
-- Billing
-- Employees
-- Reports
+     Data isolation is enforced at the database/query level: every tenant-owned record carries an `organization` foreign key, and every API query is scoped to the requesting user's organization. Tenant identity is always derived from the authenticated user's account — it is never accepted from the client.
 
-while ensuring complete data isolation and security from other organizations.
+     ---
 
-The system aims to improve business efficiency by providing intelligent insights, predictive analysis, and AI-assisted decision-making.
+     ## 🎯 Project Objectives
 
----
+     - **Multi-tenant architecture** — one application serving many organizations
+     - **Secure authentication** — JWT-based login using *Business Code + username + password*
+     - **Role-based access control (RBAC)** — distinct Business Admin and Staff capabilities
+     - **Inventory management** — stock levels, thresholds, adjustments and full movement history
+     - **Sales and purchase management** — transaction recording with automatic stock updates
+     - **Reporting and analytics** — dashboard metrics, transaction reports and saved reports
+     - **AI-assisted business intelligence** — demand forecasts, restock recommendations, insights and an AI assistant
+     - **Tenant data isolation** — strict organization-level scoping on every API and query
 
-# 🎯 Project Objectives
+     ---
 
-The main objectives of this project are:
+     ## ✨ Key Features
 
-- Build a scalable multi-tenant SaaS inventory platform
-- Maintain complete tenant-level data isolation
-- Provide secure authentication and authorization
-- Automate inventory and business operations
-- Integrate practical AI capabilities
-- Improve decision-making using intelligent insights
-- Follow modern software engineering practices
+     ### 🏢 Multi-Tenant Architecture
 
----
+     Every tenant is an `Organization` with its own UUID, profile details, logo and unique Business Code. All business data belongs to a tenant via the shared `TenantModel` base (an `organization` foreign key on every entity).
 
-# ✨ Key Features
+     Isolation is enforced in three layers:
 
-## 🏢 Multi-Tenant Architecture
+     1. **`TenantModelViewSet`** (backend) automatically filters every queryset by `request.user.organization` and stamps new records with the user's organization on create.
+     2. **`TenantScopedSerializerMixin`** narrows every writable foreign-key field to the user's own tenant, so a client can never reference another organization's records.
+     3. The organization is **always** taken from the authenticated user; any `organization` parameter supplied by the client is ignored or rejected.
 
-The system supports multiple independent organizations using the same application.
+     A user belongs to exactly one organization and can never switch tenants. A user with no organization sees no tenant data at all.
 
-Each tenant has isolated access to:
+     ### 🔐 Authentication & RBAC
 
-- Users
-- Products
-- Inventory
-- Customers
-- Suppliers
-- Purchases
-- Sales
-- Reports
-- Analytics
+     - **Registration** opens a new organization and its first **Business Admin** account in one step. The server generates the Business Code and returns it once so the admin can save it for future logins.
+     - **Login** (`/api/token/`) requires the Business Code, username and password. The username is looked up *within that organization only*, so the same username may exist in different tenants without conflict. Successful login returns JWT `access`/`refresh` tokens and the user's role and business details.
+     - **JWT sessions** use `djangorestframework-simplejwt`; access tokens are valid for 12 hours and refresh tokens for 7 days.
 
-### Multi-Tenant Security Rules
+     Roles defined in the system:
 
-Every operation ensures:
+     | Role | Code | Responsibilities |
+     | --- | --- | --- |
+     | Super Admin | `SUPER_ADMIN` | Platform-level role defined in the data model (no organization-tenant login path in the app) |
+     | Business Admin | `ADMIN` | Full organization management: staff, products, inventory, sales, purchases, reports, business profile and all AI modules |
+     | Staff | `STAFF` | Day-to-day operations: products, inventory, customers, suppliers, purchases, sales, notifications and the AI assistant |
 
-- A tenant can only access its own data
-- APIs are tenant-aware
-- Database queries enforce isolation
-- Permissions are role-based
+     RBAC is enforced with custom DRF permissions (`IsBusinessAdmin`, `IsStaff`, `IsOrganizationMember`) and route-level role guards in the frontend (Reports, AI, AI Insights, Staff and Business pages are admin-only).
 
-Tenant isolation is the core design principle of this project.
+     ### 📦 Product & Category Management
 
----
+     - **Categories** — grouped product classification, unique per tenant.
+     - **Products** — name, SKU, barcode, description, buying/selling prices, image and active status; searchable by name, SKU, barcode or category.
+     - Products with remaining inventory cannot be deleted, protecting stock history.
 
-# 🔐 Authentication & Authorization
+     ### 📊 Inventory Management
 
-The system uses secure JWT-based authentication.
+     - **Inventory records** — current quantity plus minimum/maximum stock thresholds per product, with an automatic `stock_status` (In Stock / Low Stock / Out of Stock).
+     - **Stock adjustments** — a signed quantity adjustment endpoint that locks the row, prevents negative stock, and records an `ADJUSTMENT` movement for the audit trail.
+     - **Stock movement history** — every IN, OUT and ADJUSTMENT is logged with quantity, remarks and the acting user, so purchases, sales and adjustments form a complete audit trail.
+     - **Automatic updates** — stock increases on purchases and decreases on sales.
+     - **Stock alerts** — low-stock and out-of-stock notifications fire automatically.
 
-## User Roles
+     ### 🛒 Purchase Management
 
-### Super Administrator
+     Purchases record goods received from suppliers and increase inventory.
 
-Responsible for:
+     - Create a purchase header (supplier, invoice number, date) and add one or more line items.
+     - Each item is saved with its unit cost; the invoice total is computed automatically.
+     - **Completed workflow**: the standard UI records every purchase as **Completed**, and the ordered quantities are added to stock immediately — there is no pending/receipt-draft flow exposed in the normal UI.
+     - A `StockMovement (IN)` and a purchase notification are generated automatically.
+     - Deleting a purchase (or a line item) reverses the stock change so totals stay consistent.
 
-- Managing the platform
-- Managing organizations
-- Monitoring system activity
+     ### 💰 Sales Management
 
-### Business Administrator
+     Sales are recorded as simple, one-time transactions at the POS:
 
-Responsible for:
+     - A sale is **one transaction** — pick a customer (or leave it as a *Walk-in Customer*), set the invoice number and date, and add line items.
+     - **Inventory is deducted the moment the sale is created** (with stock checked inside a transaction to prevent overselling).
+     - The **sale total is a single transaction amount** computed automatically from the line items.
+     - The normal UI represents completed sales as **PAID** — a sale order is completed and the amount paid equals the invoice total in one step.
+     - Each completed sale creates an `OUT` stock movement and a sale notification, plus low/out-of-stock alerts when thresholds are crossed.
+     - Deleting a sale (or a line item) restores the stock.
 
-- Managing organization operations
-- Managing users
-- Managing inventory and reports
+     There is **no payment-gateway integration**; the platform records in-app transaction amounts only.
 
-### Staff
+     ### 👥 Customer Management
 
-Responsible for:
+     - Customer profiles (name, email, phone, address) plus **loyalty points**.
+     - Phone is unique *within* each organization.
+     - Searchable, and automatically integrated with sales (a sale may reference a registered customer or be recorded as a walk-in).
 
-- Daily inventory operations
-- Sales and purchase activities
-- Viewing assigned information
+     ### 🏭 Supplier Management
 
-Authorization is enforced using Role-Based Access Control (RBAC).
+     - Supplier profiles with contact person, phone, email and address.
+     - Phone is unique per organization.
+     - Suppliers link directly to purchases, enabling spend tracking and purchase history per supplier.
 
----
+     ### 👨‍💼 Staff/User Management
 
-# 📦 Inventory Management Module
+     - Business Admins can create and manage **Staff** users (`/api/accounts/staff/`).
+     - Staff accounts are created under the admin's organization with the `STAFF` role and are verified immediately.
+     - Staff members log in with their business code + username + password, exactly like admins, and access their permitted modules.
 
-The inventory module provides complete stock management.
+     ### 🔔 Notifications
 
-## Features
+     - Organization-scoped notification feed with types: **Sale**, **Purchase**, **Low Stock**, **Out of Stock**, **System** and **AI Recommendation**.
+     - Notifications are generated automatically by sales, purchases, stock adjustments and stock-level events, and can be marked as read within the app.
 
-- Product Management
-- Category Management
-- Stock In
-- Stock Out
-- Inventory Tracking
-- Stock History
-- Low Stock Alerts
-- Barcode/QR Code Support
-- Advanced Search and Filtering
+     ### 📑 Reports
 
-Inventory automatically updates after:
+     - **Sales report** — date-filterable breakdown of invoices, customers, amounts, amounts paid and remaining balance.
+     - **Purchase report** — date-filterable breakdown of purchase invoices, suppliers, amounts and status.
+     - **Low stock audit** — products at or below their minimum stock level with current quantities and status.
+     - **Saved custom reports** — Business Admins can generate, snapshot and save reports (Sales, Purchase, Inventory, Customer) with a title, description and captured rows, then re-view or delete them later.
+     - Dashboard analytics endpoints shared with the Executive Dashboard.
 
-- Purchases
-- Sales
-- Stock adjustments
+     ### 📈 Dashboard & Analytics
 
----
+     - **Executive Dashboard** with key metric cards: Total Revenue (Sales), Total Expenses (Purchases), Active Products, and Low / Out of Stock count.
+     - **Date-range filtering** — the dashboard metrics can be filtered by `from_date` / `to_date`.
+     - **Sales vs Purchases** comparison chart with per-metric summaries (total amount, transaction count, date range).
+     - **Network entities** — customer and supplier counts.
+     - **Low-stock alerts** widget and **recent Sales/Purchases** tables.
 
-# 🛒 Purchase Management
+     ---
 
-Manages supplier-related operations.
+     ## 🤖 AI-Powered Features
 
-Features:
+     AI in INVENTO is implemented **inside the Django backend** (the `ai` application) rather than as a separate microservice. The AI provider used is **Groq**, via the official `groq` Python SDK, with the default model **`llama-3.3-70b-versatile`** (configured with `GROQ_MODEL`). All AI endpoints are tenant-scoped — the organization always comes from the authenticated user.
 
-- Supplier management
-- Purchase orders
-- Purchase records
-- Automatic inventory updates
-- Purchase reports
+     Implemented AI features:
 
----
+     - **AI Dashboard** — combines demand forecasts, reorder recommendations, generated insights and summary metrics (total sales, low-stock product count) in one endpoint.
+     - **Business Intelligence** — a read-only aggregation of business overview, dashboard metrics, sales intelligence (summary, revenue trend, growth vs previous period, top products), inventory intelligence (low/out-of-stock), purchase intelligence (spend, top suppliers) and attention items, with optional reporting-window filters (`days`, `period`, `bucket`, `start_date`/`end_date`).
+     - **Inventory Summary** — a concise, rule-based, human-readable summary of the tenant's inventory (overall condition, population, stock health, observations and recommended actions), built purely from real tenant data.
+     - **Demand Forecasting** — a per-product demand forecast built with **scikit-learn's `RandomForestRegressor`** from actual sale history (products with fewer than three sales are skipped).
+     - **Forecast Details** — per-product weekly forecasting for the next **4 weeks** using a 12-week history and a transparent **trend-adjusted weekly average** method (least-squares linear trend + recent-weighted base rate). Products without enough history return an explicit `insufficient_data` result instead of a fabricated prediction.
+     - **Recommendations** — smart reorder suggestions computed from current stock, minimum thresholds and the forecasted demand.
+     - **AI Insights** — human-readable insight statements (best seller, low stock, highest expected demand, total units sold) that can be generated and **persisted** as `AIInsight` records (idempotently — repeated generation never duplicates), then managed through the AI Insights page.
+     - **AI Inventory Assistant / Chatbot** — a natural-language assistant (see below).
 
-# 💰 Sales Management
+     No API keys are stored or exposed anywhere in the application; the `GROQ_API_KEY` lives only in the server-side `.env` file and is never sent to the browser.
 
-Handles customer transactions.
+     ---
 
-Features:
+     ## 💬 AI Assistant
 
-- Customer management
-- Sales orders
-- Billing
-- Invoice generation
-- Automatic stock deduction
-- Sales analytics
+     The **AI Inventory Assistant** (available to every authenticated tenant user, Staff and Business Admin) answers natural-language questions about the organization's business using controlled, tenant-scoped tool calling against the Groq model. The assistant can read data only through the backend's curated tools — it has no direct database access, and every tool is scoped to the authenticated user's organization.
 
----
+     It supports questions about products, inventory, stock movements, sales, purchases, customers, suppliers, categories, and overall business performance, including date-window awareness (today, this week, this month, last 30 days, custom dates).
 
-# 👥 Business Management Modules
+     Realistic example questions:
 
-The system includes:
+     > Which products are running low?
 
-## Customer Management
+     > Which products should I restock?
 
-- Customer profiles
-- Purchase history
-- Customer reports
+     > How are my sales performing?
 
-## Supplier Management
+     > How much revenue did I generate recently?
 
-- Supplier information
-- Purchase tracking
+     > Who are my top customers?
 
-## Employee Management
+     > Summarize my current inventory.
 
-- Employee records
-- Role assignment
-- Access management
+     > What is my best-selling product this month?
 
-## Audit Logs
+     All monetary answers are expressed in Nepalese Rupees (e.g. `Rs. 2,500.00`).
 
-Tracks:
+     ---
 
-- User activities
-- Inventory changes
-- Business operations
+     ## 📊 Dashboard & Analytics
 
----
+     The **Executive Dashboard** summarizes the tenant's business:
 
-# 🤖 AI-Powered Features
+     - **Metric cards** — total revenue (sales), total expenses (purchases), active products, low/out-of-stock count.
+     - **Date filtering** — a `from_date`/`to_date` range filter (with validation) applied to the dashboard metrics.
+     - **Sales vs Purchases** — a bar-chart comparison plus per-segment totals and transaction counts.
+     - **Network entities** — total customers and suppliers.
+     - **Low stock alerts** and **recent sales / recent purchases** widgets with quick links to the relevant modules.
 
-The system integrates practical AI features to support better business decisions.
+     The separate **AI Business Dashboard** adds the AI layer: net profit, sales revenue, stock value, low-stock count, AI inventory summary with recommended actions, business highlights (top product/customer/supplier), stock health, attention items, sales activity with period/bucket controls, revenue trend charts, period-over-period growth, best sellers, low/out-of-stock lists, supplier spend, demand forecasts, reorder recommendations and AI insights.
 
----
+     ---
 
-## 📈 Demand Forecasting
+     ## 🏗️ System Architecture
 
-Predicts future product demand using historical sales and inventory data.
+     ```
+                         Users (Business Admin / Staff)
+                                        │
+                                        ▼
+                         React 19 + Vite Frontend
+                              (react-router, axios)
+                                        │
+                                        ▼
+                    Axios  ── JSON ──  REST API (JWT auth)
+                                        │
+                                        ▼
+                    Django 6 + Django REST Framework
+                                        │
+               ┌────────────────────┼────────────────────┐
+               ▼                    ▼                    ▼
+          Custom User / RBAC     Tenant Isolation      Application Modules
+          (accounts)            (core.TenantModel,     Accounts · Business
+                              TenantModelViewSet,   · Inventory
+                              TenantScopedSerializer) · Customers ·
+                                                       Suppliers ·
+                                                       Purchases · Sales ·
+                                                       Reports · Notifications
+                                                       · AI (forecast, BI,
+                                                            insights, chatbot)
+               └────────────────────┼────────────────────┘
+                                        ▼
+                                   PostgreSQL
+                              (tenant-scoped data)
+     ```
 
-Benefits:
+     Tenant isolation lives at the **backend/application-data layer**: the `core` application base classes scope every query and write to the authenticated user's organization before data ever reaches the database. No separate AI microservice exists — the AI features are Django views/services inside the `ai` application.
 
-- Prevent stock shortages
-- Reduce overstocking
-- Improve inventory planning
+     ---
 
-Possible approaches:
+     ## 🛠️ Technology Stack
 
-- Time-series forecasting
-- Regression models
-- Statistical forecasting methods
+     ### Frontend
 
----
+     - React 19 (`react`, `react-dom`)
+     - Vite 8 build tool and dev server (`@vitejs/plugin-react`)
+     - React Router 7 for routing
+     - Axios for HTTP/API calls
+     - Recharts for charts and analytics visualizations
+     - Lucide React for icons
+     - oxlint for linting
 
-## 📦 Smart Restock Recommendation
+     ### Backend
 
-Provides intelligent recommendations for:
+     - Django 6.0 (`Django==6.0.7`)
+     - Django REST Framework 3.17
+     - django-filter (search, filtering and ordering)
+     - django-cors-headers (cross-origin API access)
+     - djangorestframework-simplejwt (JWT authentication)
+     - psycopg2-binary (PostgreSQL driver)
 
-- When to reorder products
-- Recommended stock quantity
-- Priority items
+     ### Database
 
-Based on:
+     - PostgreSQL
 
-- Sales trends
-- Current inventory
-- Demand patterns
+     ### AI / Machine Learning
 
----
+     - **Groq** (`groq` SDK) — LLM-backed chat assistant (Llama 3.3-70B)
+     - scikit-learn — demand forecasting (`RandomForestRegressor`)
+     - pandas and numpy — data manipulation for forecasting
+     - joblib — sklearn utilities
 
-## 📊 Sales Trend Analysis
+     ### Authentication
 
-Analyzes business data to identify:
+     - JWT via `djangorestframework-simplejwt` (12-hour access, 7-day refresh tokens)
+     - Custom Business-Code + username + password login flow
+     - Role-based access control (`SUPER_ADMIN` / `ADMIN` / `STAFF`)
 
-- Best-selling products
-- Sales patterns
-- Growth trends
-- Product performance
+     ### Development Tools
 
----
+     - python-dotenv / python-decouple — environment configuration
+     - Pillow — image handling (product photos, organization logos)
+     - `seed_demo_data` Django management command — repeatable demo data seeding
+     - Vite dev server + oxlint — frontend development tooling
 
-## 📝 AI Inventory Summary
+     ---
 
-Generates human-readable business insights such as:
+     ## 📂 Project Structure
 
-- Current inventory condition
-- Risky products
-- Sales performance summary
-- Recommended actions
+     ```
+     project/
+     ├── backend/
+     │   ├── accounts/          # Custom User, registration, login, staff, RBAC
+     │   ├── ai/                # AI services & endpoints
+     │   │   └── services/      #   forecasting, forecast_detail, recommendation,
+     │   │                      #   insights, dashboard, bi, inventory_summary,
+     │   │                      #   chatbot, tools (tenant-scoped AI tools)
+     │   ├── business/          # Business profile (type, PAN/VAT, currency)
+     │   ├── config/            # Django settings, root urls, wsgi/asgi
+     │   ├── core/              # Organization (tenant), TenantModel, mixins,
+     │   │                      #   BaseModel + seed_demo_data command
+     │   ├── customers/         # Customers
+     │   ├── inventory/         # Categories, Products, Inventory, Stock movements
+     │   ├── notifications/     # Sales/purchase/stock notifications
+     │   ├── purchases/         # Purchases and purchase items
+     │   ├── reports/           # Saved reports + dashboard/sales/purchase/low-stock APIs
+     │   ├── sales/             # Sales and sale items
+     │   ├── suppliers/         # Suppliers
+     │   ├── requirements.txt   # Backend Python dependencies
+     │   └── manage.py
+     │
+     ├── frontend/
+     │   ├── src/
+     │   │   ├── api/           # Axios client and typed API modules
+     │   │   ├── components/    # Reusable UI components (layout, common, ai)
+     │   │   ├── context/       # Auth + notification providers
+     │   │   ├── pages/         # Dashboard, Products, Inventory, Sales, Purchases,
+     │   │   │                  #   Customers, Suppliers, Reports, AI, AI Insights,
+     │   │   │                  #   AI Assistant (chat), Staff, Business, Notifications…
+     │   │   ├── services/      # aiService, chatbotService
+     │   │   ├── utils/         # Formatters and helpers
+     │   │   ├── App.jsx        # Routes & role guards
+     │   │   └── main.jsx
+     │   ├── public/
+     │   ├── package.json
+     │   └── vite.config.js
+     │
+     └── README.md
+     ```
 
----
+     ---
 
-## 💬 AI Inventory Assistant
+     ## 🚀 Installation & Setup
 
-A natural language assistant allowing users to ask questions like:
+     ### Prerequisites
 
-Example:
+     - **Python 3.12+** (required by Django 6.0)
+     - **Node.js 20+** (required by Vite 8)
+     - **PostgreSQL** (running locally, e.g. on `localhost:5432`)
+     - Git
 
-> "Which products are running low?"
+     ### Clone
 
-> "Show me the best-selling products this month."
+     ```bash
+     git clone https://github.com/B-chand/minor_project.git
+     cd minor_project
+     ```
 
-> "Which items should I restock?"
+     ### Backend Setup
 
-The assistant converts user queries into useful inventory insights.
+     ```bash
+     cd backend
+     python -m venv .venv
+     ```
 
----
+     Activate the virtual environment:
 
-# 📊 Dashboard & Analytics
+     Linux/Mac:
 
-The system provides a business dashboard containing:
+     ```bash
+     source .venv/bin/activate
+     ```
 
-- Inventory overview
-- Sales analytics
-- Purchase analytics
-- Stock alerts
-- AI insights
-- Charts and reports
+     Windows:
 
-Additional features:
+     ```powershell
+     .venv\Scripts\activate
+     ```
 
-- PDF Export
-- Excel Export
-- Business Reports
+     Install dependencies:
 
----
+     ```bash
+     pip install -r requirements.txt
+     ```
 
-# 🏗️ System Architecture
+     Create a `.env` file in the `backend/` directory (a template of the variables below; `.env` is gitignored — never commit secrets):
 
-```
-                    Users
-                      |
-                      |
-              React Frontend
-                      |
-                      |
-              REST API Layer
-                      |
-                      |
-        Django + Django REST Framework
-                      |
-          -------------------------
-          |                       |
-     Business Logic          AI Engine
-          |                       |
-          -------------------------
-                      |
-                PostgreSQL Database
-                      |
-              Tenant Data Isolation
-```
+     ```
+     SECRET_KEY=your-django-secret-key
+     DEBUG=True
 
----
+     DB_NAME=project_db
+     DB_USER=postgres
+     DB_PASSWORD=your-db-password
+     DB_HOST=localhost
+     DB_PORT=5432
 
-# 🛠️ Technology Stack
+     # Groq AI (optional — required for the AI chat assistant)
+     GROQ_API_KEY=your-groq-api-key
+     GROQ_MODEL=llama-3.3-70b-versatile
+     ```
 
-## Frontend
+     Additional optional variables supported by `config/settings.py`: `ALLOWED_HOSTS`, `CORS_ALLOW_ALL_ORIGINS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `GROQ_MAX_TOOL_ROUNDS`, `GROQ_TIMEOUT_SECONDS`, `LOG_LEVEL`.
 
-- React.js
-- JavaScript / TypeScript
-- HTML5
-- CSS3
-- Modern UI Components
+     Apply migrations:
 
----
+     ```bash
+     python manage.py migrate
+     ```
 
-## Backend
+     *Optional* — seed every existing organization with realistic demo data (categories, products, suppliers, customers, purchases, sales, stock movements, notifications and AI insights). The command is idempotent and never deletes real data:
 
-- Django
-- Django REST Framework
-- RESTful API Architecture
-- JWT Authentication
+     ```bash
+     python manage.py seed_demo_data
+     ```
 
----
+     Start the backend server:
 
-## Database
+     ```bash
+     python manage.py runserver
+     ```
 
-- PostgreSQL
+     ### Frontend Setup
 
-Database design follows:
+     In a second terminal:
 
-- Normalization principles
-- Tenant-aware schema design
-- Secure data relationships
+     ```bash
+     cd frontend
+     npm install
+     npm run dev
+     ```
 
----
+     The Vite dev server runs at `http://localhost:5173` (this origin is pre-configured for CORS).
 
-## Artificial Intelligence
+     ### First login
 
-Technologies:
+     1. Open the frontend and go to **Register**.
+     2. Create the organization and the first Business Admin account.
+     3. Note the generated **Business Code**.
+     4. Log in with the **Business Code + username + password**.
+     5. As an admin, add staff, products/categories, inventory, suppliers and customers, then start recording purchases and sales.
 
-- Python
-- Scikit-learn
-- Pandas
-- NumPy
+     ---
 
-AI models focus on:
+     ## 🔒 Security Design
 
-- Forecasting
-- Recommendation
-- Analytics
-- Business insights
+     - JWT-based authentication on every protected API
+     - Role-based access control for admin-only modules
+     - **Tenant-aware data scoping** on every queryset and foreign-key validation
+     - Organization identity always derived from the authenticated user (client-supplied tenant values are never trusted)
+     - Passwords hashed via Django's built-in password management
+     - Server-side stock integrity checks (row locks, no negative stock, no overselling)
+     - Groq AI key stored only in server-side environment config and never exposed to clients
 
----
+     ---
 
-# 📂 Project Structure
+     ## 📄 License
 
-```
-AI-Inventory-Management-System/
-
-│
-├── frontend/
-│   ├── src/
-│   ├── components/
-│   ├── pages/
-│   ├── services/
-│   └── utils/
-│
-├── backend/
-│   ├── apps/
-│   │   ├── accounts/
-│   │   ├── tenants/
-│   │   ├── inventory/
-│   │   ├── sales/
-│   │   ├── purchases/
-│   │   └── reports/
-│   │
-│   ├── api/
-│   ├── middleware/
-│   ├── settings/
-│   └── manage.py
-│
-├── ai-engine/
-│   ├── forecasting/
-│   ├── recommendation/
-│   ├── analytics/
-│   └── models/
-│
-├── database/
-│
-├── documentation/
-│
-└── README.md
-```
-
----
-
-# 🚀 Installation & Setup
-
-## Prerequisites
-
-Install:
-
-- Python >= 3.10
-- Node.js >= 18
-- PostgreSQL
-- Git
-
----
-
-# Backend Setup
-
-Clone repository:
-
-```bash
-git clone https://github.com/your-username/AI-Inventory-Management-System.git
-
-cd AI-Inventory-Management-System/backend
-```
-
-Create virtual environment:
-
-```bash
-python -m venv venv
-```
-
-Activate environment:
-
-Linux/Mac:
-
-```bash
-source venv/bin/activate
-```
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Configure environment:
-
-```
-DATABASE_NAME=
-DATABASE_USER=
-DATABASE_PASSWORD=
-DATABASE_HOST=
-DATABASE_PORT=
-
-JWT_SECRET_KEY=
-```
-
-Run migrations:
-
-```bash
-python manage.py migrate
-```
-
-Start server:
-
-```bash
-python manage.py runserver
-```
-
----
-
-# Frontend Setup
-
-```bash
-cd frontend
-
-npm install
-
-npm run dev
-```
-
----
-
-# 🔒 Security Design
-
-The system implements:
-
-- JWT Authentication
-- Role-Based Access Control
-- Tenant-aware middleware
-- Secure API authorization
-- Password hashing
-- Input validation
-- Protected database queries
-
----
-
-# 🧠 Software Engineering Practices
-
-The project follows:
-
-- Clean Code principles
-- Modular architecture
-- Reusable components
-- REST API standards
-- Database normalization
-- Separation of concerns
-- Scalable design patterns
-
----
-
-# 🚀 Future Enhancements
-
-Possible future improvements:
-
-- Docker deployment
-- Cloud hosting
-- Mobile application
-- Real-time inventory tracking
-- IoT warehouse integration
-- Advanced AI recommendation engine
-- Voice-based inventory assistant
-- Automated purchase ordering
-
----
-
-# 👨‍💻 Academic Project
-
-## Computer Engineering Minor Project
-
-### Project Title
-
-**AI-Powered Smart Multi-Tenant Inventory Management Solution**
-
----
-
-# 📄 License
-
-This project is developed for academic purposes.
-
-Licensed under the MIT License.
+     This project is developed for academic purposes (Computer Engineering minor project).
