@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
+from corsheaders.defaults import default_headers
 
 load_dotenv()
 
@@ -188,6 +189,11 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+# CORS headers allowed on cross-origin requests. ``default_headers`` keeps the
+# stock django-cors-headers allow-list; authentication and origins are
+# unchanged.
+CORS_ALLOW_HEADERS = [*default_headers]
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
@@ -211,6 +217,7 @@ SIMPLE_JWT = {
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_MAX_TOOL_ROUNDS = int(os.getenv("GROQ_MAX_TOOL_ROUNDS", "4"))
+GROQ_TIMEOUT_SECONDS = float(os.getenv("GROQ_TIMEOUT_SECONDS", "60"))
 
 
 LOG_DIR = BASE_DIR / "logs"

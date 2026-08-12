@@ -1,9 +1,11 @@
 from rest_framework import serializers
 
+from core.mixins import TenantScopedSerializerMixin
+
 from .models import Report
 
 
-class ReportSerializer(serializers.ModelSerializer):
+class ReportSerializer(TenantScopedSerializerMixin):
 
     generated_by_name = serializers.ReadOnlyField(
         source="generated_by.username"
@@ -19,4 +21,5 @@ class ReportSerializer(serializers.ModelSerializer):
             "organization",
             "created_at",
             "updated_at",
+            "generated_by",
         )

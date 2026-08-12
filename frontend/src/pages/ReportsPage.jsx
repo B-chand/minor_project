@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, Plus, FileSpreadsheet, TrendingUp, AlertTriangle, Download } from 'lucide-react';
+import { BarChart3, Plus, FileSpreadsheet, TrendingUp, AlertTriangle } from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -13,9 +13,17 @@ import { Modal, Loader } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
+const TYPE_DEFAULT_TAB = {
+  SALES: 'sales',
+  PURCHASE: 'purchases',
+  INVENTORY: 'low-stock',
+  CUSTOMER: 'customers',
+};
+
 export const ReportsPage = () => {
-  const [activeTab, setActiveTab] = useState('sales'); // 'sales' | 'low-stock' | 'saved'
+  const [activeTab, setActiveTab] = useState('sales'); // 'sales' | 'purchases' | 'low-stock' | 'saved'
   const [salesData, setSalesData] = useState([]);
+  const [purchaseData, setPurchaseData] = useState([]);
   const [lowStockData, setLowStockData] = useState([]);
   const [savedReports, setSavedReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +33,10 @@ export const ReportsPage = () => {
   const [reportForm, setReportForm] = useState({ title: '', report_type: 'SALES', description: '' });
   const [submitting, setSubmitting] = useState(false);
 
+  // View saved report modal
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingReport, setViewingReport] = useState(null);
+
   const { showToast } = useNotification();
 
   const fetchReportData = async () => {
@@ -33,6 +45,9 @@ export const ReportsPage = () => {
       if (activeTab === 'sales') {
         const res = await reportApi.getSalesReport();
         setSalesData(res.data || []);
+      } else if (activeTab === 'purchases') {
+        const res = await reportApi.getPurchasesReport();
+        setPurchaseData(res.data || []);
       } else if (activeTab === 'low-stock') {
         const res = await reportApi.getLowStockReport();
         setLowStockData(res.data || []);
@@ -51,11 +66,28 @@ export const ReportsPage = () => {
     fetchReportData();
   }, [activeTab]);
 
+  const buildReportData = () => {
+    const rowsByType = {
+      SALES: salesData,
+      PURCHASE: purchaseData,
+      INVENTORY: lowStockData,
+    };
+    return {
+      config: {
+        tab: TYPE_DEFAULT_TAB[reportForm.report_type] || 'sales',
+        report_type: reportForm.report_type,
+      },
+      generated_at: new Date().toISOString(),
+      rows: rowsByType[reportForm.report_type] || [],
+    };
+  };
+
   const handleCreateReport = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await reportApi.createReport(reportForm);
+      const report_data = buildReportData();
+      await reportApi.createReport({ ...reportForm, report_data });
       showToast('Report generated & saved successfully!', 'success');
       setIsModalOpen(false);
       fetchReportData();
@@ -66,6 +98,98 @@ export const ReportsPage = () => {
     }
   };
 
+  const openCreateModal = () => {
+    const defaultType = {
+      sales: 'SALES',
+      purchases: 'PURCHASE',
+      'low-stock': 'INVENTORY',
+    }[activeTab] || 'SALES';
+    setReportForm({ title: '', report_type: defaultType, description: '' });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteReport = async (id) => {
+    if (!window.confirm('Delete this saved report?')) return;
+    try {
+      await reportApi.deleteReport(id);
+      showToast('Saved report deleted.', 'success');
+      fetchReportData();
+    } catch (err) {
+      showToast('Failed to delete report.', 'error');
+    }
+  };
+
+  const openView = (report) => {
+    setViewingReport(report);
+    setIsViewOpen(true);
+  };
+
+  const renderSavedSnapshotRows = () => {
+    const rows = viewingReport?.report_data?.rows || [];
+    const tab = viewingReport?.report_data?.config?.tab || 'sales';
+
+    if (rows.length === 0) {
+      return (
+        <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          No snapshot rows were captured for this saved report.
+        </div>
+      );
+    }
+
+    const columns = {
+      sales: { headers: ['Date', 'Invoice #', 'Customer', 'Amount', 'Status'] },
+      purchases: { headers: ['Date', 'Invoice #', 'Supplier', 'Amount', 'Status'] },
+      'low-stock': { headers: ['Product', 'Available', 'Min Limit', 'Status'] },
+    }[tab] || { headers: ['Date', 'Invoice #', 'Customer', 'Amount', 'Status'] };
+
+    return (
+      <div className="table-responsive">
+        <table className="custom-table">
+          <thead>
+            <tr>
+              {columns.headers.map((h) => <th key={h}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              if (tab === 'low-stock') {
+                return (
+                  <tr key={idx}>
+                    <td style={{ fontWeight: 600 }}>{row.product}</td>
+                    <td style={{ fontWeight: 700, color: row.quantity === 0 ? 'var(--status-danger)' : 'var(--status-warning)' }}>
+                      {row.quantity} units
+                    </td>
+                    <td>{row.minimum_stock}</td>
+                    <td>
+                      <span className={`badge ${row.quantity === 0 ? 'badge-danger' : 'badge-warning'}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              }
+              const amount = parseFloat(row.amount ?? 0);
+              const isPurchase = tab === 'purchases';
+              return (
+                <tr key={idx}>
+                  <td style={{ color: 'var(--text-muted)' }}>{row.date ? formatDate(row.date) : '—'}</td>
+                  <td style={{ fontWeight: 600 }}>{row.invoice}</td>
+                  <td>{isPurchase ? row.supplier : row.customer}</td>
+                  <td style={{ fontWeight: 700, color: isPurchase ? 'var(--status-info)' : 'var(--status-success)' }}>
+                    {formatCurrency(amount)}
+                  </td>
+                  <td>
+                    <span className="badge badge-secondary">{row.status}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="flex-between mb-6">
@@ -73,7 +197,7 @@ export const ReportsPage = () => {
           <h1 className="page-title">Analytics & Reports</h1>
           <p className="page-subtitle">Generate business intelligence reports and audit summaries</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+        <button className="btn btn-primary" onClick={openCreateModal}>
           <Plus size={18} /> Save Custom Report
         </button>
       </div>
@@ -85,6 +209,12 @@ export const ReportsPage = () => {
           onClick={() => setActiveTab('sales')}
         >
           <TrendingUp size={18} /> Sales Report
+        </button>
+        <button
+          className={`btn ${activeTab === 'purchases' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('purchases')}
+        >
+          <BarChart3 size={18} /> Purchase Report
         </button>
         <button
           className={`btn ${activeTab === 'low-stock' ? 'btn-primary' : 'btn-secondary'}`}
@@ -217,6 +347,68 @@ export const ReportsPage = () => {
               </table>
             </div>
           </div>
+        ) : activeTab === 'purchases' ? (
+          <div>
+            <div className="flex-between mb-4">
+              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Purchase Transactions Breakdown</h3>
+            </div>
+
+            {purchaseData.length > 0 && (
+              <div style={{ width: '100%', height: 260, marginBottom: '2rem' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={purchaseData.slice(0, 12)} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                    <XAxis dataKey="invoice" stroke="var(--text-muted)" fontSize={11} />
+                    <YAxis stroke="var(--text-muted)" fontSize={11} />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                      contentStyle={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderColor: 'var(--border-color)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                      }}
+                      formatter={(value) => formatCurrency(value)}
+                    />
+                    <Bar dataKey="amount" fill="var(--status-info)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="table-responsive">
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Invoice #</th>
+                    <th>Supplier Name</th>
+                    <th>Purchase Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseData.map((p, idx) => (
+                    <tr key={idx}>
+                      <td style={{ color: 'var(--text-muted)' }}>{formatDate(p.date)}</td>
+                      <td style={{ fontWeight: 600 }}>{p.invoice}</td>
+                      <td>{p.supplier}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--status-info)' }}>
+                        {formatCurrency(p.amount)}
+                      </td>
+                      <td>
+                        <span className={`badge ${
+                          p.status === 'Completed' ? 'badge-success' :
+                          p.status === 'Pending' ? 'badge-warning' : 'badge-danger'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <div>
             <div className="flex-between mb-4">
@@ -230,6 +422,7 @@ export const ReportsPage = () => {
                     <th>Type</th>
                     <th>Generated By</th>
                     <th>Description</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,6 +434,22 @@ export const ReportsPage = () => {
                       </td>
                       <td>{r.generated_by_name || 'System Admin'}</td>
                       <td style={{ color: 'var(--text-muted)' }}>{r.description || 'N/A'}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => openView(r)}
+                          >
+                            View
+                          </button>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => handleDeleteReport(r.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -302,6 +511,50 @@ export const ReportsPage = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+        title={viewingReport ? `Saved Report — ${viewingReport.title}` : 'Saved Report'}
+      >
+        {viewingReport && (
+          <div>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Report Type</label>
+                <div>
+                  <span className="badge badge-info">{viewingReport.report_type}</span>
+                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Generated By</label>
+                <div style={{ paddingTop: '0.25rem' }}>
+                  {viewingReport.generated_by_name || 'System Admin'}
+                </div>
+              </div>
+              {viewingReport.report_data?.generated_at && (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Snapshot Taken</label>
+                  <div style={{ paddingTop: '0.25rem' }}>
+                    {formatDate(viewingReport.report_data.generated_at)}
+                  </div>
+                </div>
+              )}
+            </div>
+            {viewingReport.description && (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                {viewingReport.description}
+              </p>
+            )}
+            {renderSavedSnapshotRows()}
+          </div>
+        )}
+        <div className="modal-footer" style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setIsViewOpen(false)}>
+            Close
+          </button>
+        </div>
       </Modal>
     </div>
   );

@@ -1,9 +1,11 @@
 from rest_framework import serializers
 
+from core.mixins import TenantScopedSerializerMixin
+
 from .models import Notification
 
 
-class NotificationSerializer(serializers.ModelSerializer):
+class NotificationSerializer(TenantScopedSerializerMixin):
 
     created_for_name = serializers.ReadOnlyField(
         source="created_for.username"

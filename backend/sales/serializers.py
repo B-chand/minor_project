@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from core.mixins import TenantScopedSerializerMixin
+
 from .models import (
     Sale,
     SaleItem,
@@ -10,7 +12,7 @@ from .models import (
 from notifications.services import create_notification
 
 
-class SaleItemSerializer(serializers.ModelSerializer):
+class SaleItemSerializer(TenantScopedSerializerMixin):
 
     product_name = serializers.ReadOnlyField(
         source="product.name"
@@ -41,35 +43,6 @@ class SaleItemSerializer(serializers.ModelSerializer):
         unit_price = validated_data["unit_price"]
 
 
-        # Check inventory exists
-        try:
-
-            inventory = Inventory.objects.get(
-                product=product,
-                organization=sale.organization
-            )
-
-        except Inventory.DoesNotExist:
-
-            raise serializers.ValidationError(
-                {
-                    "product":
-                    "Inventory record does not exist for this product."
-                }
-            )
-
-
-        # Check available stock
-        if inventory.quantity < quantity:
-
-            raise serializers.ValidationError(
-                {
-                    "quantity":
-                    f"Only {inventory.quantity} items are available in stock."
-                }
-            )
-
-
         # Calculate subtotal
         validated_data["subtotal"] = (
             Decimal(quantity) * unit_price
@@ -77,6 +50,39 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
 
         with transaction.atomic():
+
+            # Lock the inventory row and check stock inside the transaction so
+            # concurrent sale requests cannot oversell the same product.
+            try:
+
+                inventory = (
+                    Inventory.objects
+                    .select_for_update()
+                    .get(
+                        product=product,
+                        organization=sale.organization
+                    )
+                )
+
+            except Inventory.DoesNotExist:
+
+                raise serializers.ValidationError(
+                    {
+                        "product":
+                        "Inventory record does not exist for this product."
+                    }
+                )
+
+
+            # Check available stock
+            if inventory.quantity < quantity:
+
+                raise serializers.ValidationError(
+                    {
+                        "quantity":
+                        f"Only {inventory.quantity} items are available in stock."
+                    }
+                )
 
 
             # Create Sale Item
@@ -96,7 +102,8 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
             sale.save(
                 update_fields=[
-                    "total_amount"
+                    "total_amount",
+                    "payment_status",
                 ]
             )
 
@@ -106,7 +113,8 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
             inventory.save(
                 update_fields=[
-                    "quantity"
+                    "quantity",
+                    "updated_at",
                 ]
             )
 
@@ -171,12 +179,15 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
 
 
-class SaleSerializer(serializers.ModelSerializer):
+class SaleSerializer(TenantScopedSerializerMixin):
 
     customer_name = serializers.ReadOnlyField(
         source="customer.first_name"
     )
 
+    payment_status = serializers.SerializerMethodField()
+
+    remaining_amount = serializers.SerializerMethodField()
 
     items = SaleItemSerializer(
         many=True,
@@ -197,6 +208,50 @@ class SaleSerializer(serializers.ModelSerializer):
             "updated_at",
             "total_amount",
         )
+
+
+    def get_payment_status(self, obj):
+        return obj.computed_payment_status()
+
+
+    def get_remaining_amount(self, obj):
+        return obj.remaining_amount()
+
+
+    def validate_amount_paid(self, value):
+        if value < 0:
+            raise serializers.ValidationError(
+                "Paid amount cannot be negative."
+            )
+
+        if self.instance is not None and value > self.instance.total_amount:
+            raise serializers.ValidationError(
+                "Paid amount cannot exceed the invoice total."
+            )
+
+        return value
+
+
+class RecordPaymentSerializer(serializers.Serializer):
+    """
+    Validates a single payment received toward a sale invoice.
+
+    Only the request body is validated here; sale-specific constraints
+    (already-paid state, remaining balance) are enforced in the view inside
+    a transaction with a row lock.
+    """
+
+    amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                "Payment amount must be greater than zero."
+            )
+        return value
 
 
     def validate_invoice_number(self, value):

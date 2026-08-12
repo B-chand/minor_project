@@ -1,3 +1,5 @@
+from rest_framework.exceptions import ValidationError
+
 from core.mixins import TenantModelViewSet
 
 from .models import Notification
@@ -13,7 +15,18 @@ class NotificationViewSet(TenantModelViewSet):
     serializer_class = NotificationSerializer
 
     def perform_create(self, serializer):
+        organization = getattr(self.request.user, "organization", None)
+
+        if not organization:
+            raise ValidationError(
+                {
+                    "organization": (
+                        "The authenticated user is not assigned to an organization."
+                    )
+                }
+            )
+
         serializer.save(
-            organization=self.request.user.organization,
+            organization=organization,
             created_for=self.request.user,
         )

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { UserCheck, Plus, Edit2, Trash2, ShieldCheck, Mail, Phone } from 'lucide-react';
+import { Plus, Edit2, Trash2, Mail, Phone } from 'lucide-react';
 import { authApi } from '../api';
-import { Modal, Loader } from '../components/common/UIComponents';
+import { Modal, Loader, PasswordInput } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
 
 export const StaffPage = () => {
@@ -222,12 +222,11 @@ export const StaffPage = () => {
             <label className="form-label">
               Password {editingStaff && '(Leave empty to keep existing password)'}
             </label>
-            <input
-              type="password"
-              className="form-input"
+            <PasswordInput
               placeholder={editingStaff ? '••••••••' : 'Password'}
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              autoComplete="new-password"
               required={!editingStaff}
             />
           </div>

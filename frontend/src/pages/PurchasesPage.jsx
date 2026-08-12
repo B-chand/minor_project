@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Eye, Trash2, PlusCircle, MinusCircle } from 'lucide-react';
+import { Plus, Eye, Trash2, PlusCircle, MinusCircle, Search } from 'lucide-react';
 import { purchaseApi, supplierApi, productApi, fetchAllPages } from '../api';
 import { Modal, Loader, Pagination } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
@@ -13,6 +13,7 @@ export const PurchasesPage = () => {
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   // Detail Modal
   const [selectedPurchase, setSelectedPurchase] = useState(null);
@@ -37,7 +38,9 @@ export const PurchasesPage = () => {
   const fetchPurchases = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await purchaseApi.getAll({ page });
+      const params = { page };
+      if (search.trim()) params.search = search.trim();
+      const res = await purchaseApi.getAll(params);
       setPurchases(res.data.results || res.data || []);
       setCount(res.data.count || (res.data || []).length);
     } catch {
@@ -45,7 +48,7 @@ export const PurchasesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, showToast]);
+  }, [page, search, showToast]);
 
   const fetchDependencies = useCallback(async () => {
     try {
@@ -109,7 +112,7 @@ export const PurchasesPage = () => {
       updated[index][field] = value;
 
       if (field === 'product') {
-        const selectedProd = products.find((p) => p.id === value);
+        const selectedProd = products.find((p) => Number(p.id) === Number(value));
         if (selectedProd) {
           updated[index].unit_price = selectedProd.buying_price;
         }
@@ -179,6 +182,11 @@ export const PurchasesPage = () => {
     }
   };
 
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
+
   return (
     <div>
       <div className="flex-between mb-6">
@@ -189,6 +197,22 @@ export const PurchasesPage = () => {
         <button className="btn btn-primary" onClick={handleOpenCreateModal}>
           <Plus size={18} /> New Purchase Order
         </button>
+      </div>
+
+      <div className="glass-card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ flex: '1 1 260px', position: 'relative' }}>
+            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="form-input"
+              style={{ paddingLeft: '2.25rem' }}
+              placeholder="Search by invoice number or supplier..."
+              value={search}
+              onChange={handleSearchChange}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="glass-card">
@@ -222,11 +246,8 @@ export const PurchasesPage = () => {
                         {formatCurrency(p.total_amount)}
                       </td>
                       <td>
-                        <span className={`badge ${
-                          p.status === 'Completed' ? 'badge-success' :
-                          p.status === 'Pending' ? 'badge-warning' : 'badge-danger'
-                        }`}>
-                          {p.status}
+                        <span className={`badge ${p.status === 'Completed' ? 'badge-success' : p.status === 'Pending' ? 'badge-warning' : 'badge-danger'}`}>
+                          {p.status || 'Pending'}
                         </span>
                       </td>
                       <td>
@@ -358,18 +379,6 @@ export const PurchasesPage = () => {
                 required
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Status</label>
-              <select
-                className="form-select"
-                value={headerForm.status}
-                onChange={(e) => setHeaderForm({ ...headerForm, status: e.target.value })}
-              >
-                <option value="Completed">Completed (Update Stock Now)</option>
-                <option value="Pending">Pending</option>
-              </select>
-            </div>
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
@@ -384,6 +393,9 @@ export const PurchasesPage = () => {
               >
                 <PlusCircle size={14} /> Add Line Item
               </button>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+              This purchase is saved as completed and the ordered quantities are added to stock.
             </div>
 
             {itemsForm.map((item, index) => (

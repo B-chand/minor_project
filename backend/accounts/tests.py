@@ -85,6 +85,64 @@ class RegisterAndAuthTests(APITestCase):
             ["A user with that username already exists."],
         )
 
+    def test_register_returns_generated_business_code(self):
+        url = "/api/accounts/register/"
+        data = {
+            "username": "admin_gen",
+            "email": "admin_gen@test.com",
+            "password": "secure-pass-123",
+            "phone": "9800000000",
+            "organization_name": "Code Retail",
+            "organization_email": "code@test.com",
+            "organization_phone": "9800000001",
+            "organization_address": "Kathmandu",
+        }
+
+        res = self.client.post(url, data, format="json")
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        code = res.data.get("business_code")
+        self.assertTrue(code)
+        self.assertEqual(res.data.get("organization_code"), code)
+
+        org = User.objects.get(username="admin_gen").organization
+        self.assertEqual(org.code, code)
+
+        # The generated code works for Business Admin login.
+        login = self.client.post(
+            "/api/token/",
+            {
+                "business_code": code,
+                "username": "admin_gen",
+                "password": "secure-pass-123",
+            },
+            format="json",
+        )
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+
+    def test_register_ignores_client_business_code_and_organization_id(self):
+        url = "/api/accounts/register/"
+        data = {
+            "username": "admin_tamper",
+            "email": "admin_tamper@test.com",
+            "password": "secure-pass-123",
+            "phone": "9800000000",
+            "organization_name": "Tamper Retail",
+            "organization_email": "tamperorg@test.com",
+            "organization_phone": "9800000001",
+            "business_code": "CUSTOM-EDITED",
+            "organization_id": "00000000-0000-0000-0000-000000000001",
+        }
+
+        res = self.client.post(url, data, format="json")
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+
+        org = User.objects.get(username="admin_tamper").organization
+        # Client-supplied code/tenant are ignored; the server generates one.
+        self.assertNotEqual(org.code, "CUSTOM-EDITED")
+        self.assertTrue(org.code.startswith("B"))
+        self.assertEqual(res.data["business_code"], org.code)
+
     def test_login_returns_tokens(self):
         org = Organization.objects.create(
             name="Corp", email="corp@test.com", phone="9800"
@@ -99,7 +157,11 @@ class RegisterAndAuthTests(APITestCase):
 
         res = self.client.post(
             "/api/token/",
-            {"username": "boss", "password": "pass-123"},
+            {
+                "business_code": org.code,
+                "username": "boss",
+                "password": "pass-123",
+            },
             format="json",
         )
         self.assertEqual(res.status_code, status.HTTP_200_OK)

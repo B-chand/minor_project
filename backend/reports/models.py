@@ -28,6 +28,16 @@ class Report(TenantModel):
         blank=True
     )
 
+    report_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Stores the useful report configuration/content snapshot "
+            "(rows, filters, generated_at) that makes a saved report "
+            "re-viewable later."
+        ),
+    )
+
     generated_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,

@@ -476,7 +476,7 @@ def sales_summary(
                 "invoice": s.invoice_number,
                 "date": _iso(s.sale_date),
                 "total": _money(s.total_amount),
-                "payment_status": s.payment_status,
+                "payment_status": s.computed_payment_status(),
             }
             for s in latest
         ],

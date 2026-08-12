@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from core.mixins import TenantScopedSerializerMixin
+
 from .models import (
     Category,
     Product,
@@ -8,7 +10,7 @@ from .models import (
 )
 
 
-class CategorySerializer(serializers.ModelSerializer):
+class CategorySerializer(TenantScopedSerializerMixin):
 
     class Meta:
         model = Category
@@ -22,7 +24,7 @@ class CategorySerializer(serializers.ModelSerializer):
         )
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(TenantScopedSerializerMixin):
 
     category_name = serializers.CharField(
         source="category.name",
@@ -97,11 +99,17 @@ class ProductSerializer(serializers.ModelSerializer):
         return value
 
 
-class InventorySerializer(serializers.ModelSerializer):
+class InventorySerializer(TenantScopedSerializerMixin):
 
     product_name = serializers.ReadOnlyField(
         source="product.name"
     )
+
+    product_sku = serializers.ReadOnlyField(
+        source="product.sku"
+    )
+
+    category_name = serializers.SerializerMethodField()
 
     stock_status = serializers.ReadOnlyField()
 
@@ -117,8 +125,76 @@ class InventorySerializer(serializers.ModelSerializer):
             "stock_status",
         )
 
+    def get_category_name(self, obj):
+        category = obj.product.category
+        return category.name if category else None
 
-class StockMovementSerializer(serializers.ModelSerializer):
+    def validate_quantity(self, value):
+        raise serializers.ValidationError(
+            "Quantity cannot be set directly. Use Opening Stock (IN), "
+            "a Purchase, a Sale, or the Stock Adjustment action to change "
+            "physical stock with a matching audit movement."
+        )
+
+
+ADJUSTMENT_REASONS = (
+    ("Correction", "Correction (fix a data entry error)"),
+    ("Damaged", "Damaged goods"),
+    ("Lost", "Lost or missing stock"),
+    ("Found", "Found or returned stock"),
+    ("Physical Count", "Physical count difference"),
+    ("Other", "Other reason"),
+)
+
+
+class AdjustStockSerializer(serializers.Serializer):
+    """
+    Validates a signed stock adjustment against an existing inventory item.
+
+    ``adjustment`` is the signed delta applied to the backend's authoritative
+    quantity. ``reason`` must come from the controlled list and ``note`` is
+    required (and meaningful) when the reason is "Other".
+    """
+
+    adjustment = serializers.IntegerField()
+
+    reason = serializers.ChoiceField(choices=ADJUSTMENT_REASONS)
+
+    note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+
+    def validate_adjustment(self, value):
+        if isinstance(value, bool):
+            raise serializers.ValidationError(
+                "Adjustment must be an integer (it can be negative)."
+            )
+
+        if value == 0:
+            raise serializers.ValidationError(
+                "The adjustment amount cannot be zero."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        if attrs.get("reason") == "Other":
+            note = attrs.get("note", "").strip()
+
+            if len(note) < 5:
+                raise serializers.ValidationError(
+                    "A note of at least 5 characters is required "
+                    "when the reason is 'Other'."
+                )
+
+            attrs["note"] = note
+
+        return attrs
+
+
+class StockMovementSerializer(TenantScopedSerializerMixin):
 
     product_name = serializers.ReadOnlyField(
         source="product.name"

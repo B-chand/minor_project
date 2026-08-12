@@ -1,9 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Eye, Trash2, PlusCircle, MinusCircle } from 'lucide-react';
+import { Plus, Eye, Trash2, PlusCircle, MinusCircle, Search } from 'lucide-react';
 import { saleApi, customerApi, productApi, inventoryApi, fetchAllPages } from '../api';
 import { Modal, Loader, Pagination } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
+
+const PAYMENT_BADGE_CLASS = {
+  PAID: 'badge-success',
+  PARTIAL: 'badge-warning',
+  UNPAID: 'badge-danger',
+};
+
+const PaymentBadge = ({ status }) => (
+  <span className={`badge ${PAYMENT_BADGE_CLASS[status] || 'badge-secondary'}`}>
+    {status || 'PAID'}
+  </span>
+);
 
 export const SalesPage = () => {
   const [sales, setSales] = useState([]);
@@ -14,6 +26,7 @@ export const SalesPage = () => {
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   // Detail Modal
   const [selectedSale, setSelectedSale] = useState(null);
@@ -25,7 +38,6 @@ export const SalesPage = () => {
     customer: '',
     invoice_number: '',
     sale_date: new Date().toISOString().split('T')[0],
-    payment_status: 'Paid',
     notes: '',
   });
   const [itemsForm, setItemsForm] = useState([
@@ -38,7 +50,9 @@ export const SalesPage = () => {
   const fetchSales = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await saleApi.getAll({ page });
+      const params = { page };
+      if (search.trim()) params.search = search.trim();
+      const res = await saleApi.getAll(params);
       setSales(res.data.results || res.data || []);
       setCount(res.data.count || (res.data || []).length);
     } catch {
@@ -46,7 +60,7 @@ export const SalesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, showToast]);
+  }, [page, search, showToast]);
 
   const fetchDependencies = useCallback(async () => {
     try {
@@ -84,7 +98,6 @@ export const SalesPage = () => {
       customer: customers.length > 0 ? customers[0].id : '',
       invoice_number: `INV-${Math.floor(100000 + Math.random() * 900000)}`,
       sale_date: new Date().toISOString().split('T')[0],
-      payment_status: 'Paid',
       notes: '',
     });
 
@@ -122,7 +135,7 @@ export const SalesPage = () => {
       updated[index][field] = value;
 
       if (field === 'product') {
-        const selectedProd = products.find((p) => p.id === value);
+        const selectedProd = products.find((p) => Number(p.id) === Number(value));
         if (selectedProd) {
           updated[index].unit_price = selectedProd.selling_price;
         }
@@ -138,7 +151,7 @@ export const SalesPage = () => {
     for (const item of itemsForm) {
       const available = inventoryMap[item.product] || 0;
       if (item.quantity > available) {
-        const prod = products.find((p) => p.id === item.product);
+        const prod = products.find((p) => Number(p.id) === Number(item.product));
         showToast(
           `Insufficient stock for "${prod?.name || 'product'}". Only ${available} available.`,
           'error'
@@ -152,6 +165,13 @@ export const SalesPage = () => {
       // Step 1: Create Sale Header
       const headerData = { ...headerForm };
       if (!headerData.customer) delete headerData.customer; // Handle walk-in customer
+      let totalCents = 0;
+      for (const item of itemsForm) {
+        const qty = parseInt(item.quantity, 10) || 0;
+        const priceCents = Math.round((parseFloat(item.unit_price) || 0) * 100);
+        totalCents += priceCents * qty;
+      }
+      headerData.amount_paid = (totalCents / 100).toFixed(2);
 
       const headerRes = await saleApi.create(headerData);
       const saleId = headerRes.data.id;
@@ -205,6 +225,11 @@ export const SalesPage = () => {
     }
   };
 
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
+
   return (
     <div>
       <div className="flex-between mb-6">
@@ -215,6 +240,22 @@ export const SalesPage = () => {
         <button className="btn btn-primary" onClick={handleOpenCreateModal}>
           <Plus size={18} /> New Sales Order
         </button>
+      </div>
+
+      <div className="glass-card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ flex: '1 1 260px', position: 'relative' }}>
+            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="form-input"
+              style={{ paddingLeft: '2.25rem' }}
+              placeholder="Search by invoice number or customer..."
+              value={search}
+              onChange={handleSearchChange}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="glass-card">
@@ -234,7 +275,7 @@ export const SalesPage = () => {
                     <th>Customer</th>
                     <th>Date</th>
                     <th>Total Amount</th>
-                    <th>Payment Status</th>
+                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -248,12 +289,7 @@ export const SalesPage = () => {
                         {formatCurrency(s.total_amount)}
                       </td>
                       <td>
-                        <span className={`badge ${
-                          s.payment_status === 'Paid' ? 'badge-success' :
-                          s.payment_status === 'Partial' ? 'badge-warning' : 'badge-danger'
-                        }`}>
-                          {s.payment_status}
-                        </span>
+                        <PaymentBadge status={s.payment_status} />
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -331,11 +367,17 @@ export const SalesPage = () => {
               </table>
             </div>
 
-            <div className="flex-between" style={{ padding: '1rem', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)' }}>
-              <span style={{ fontWeight: 600 }}>Grand Total Amount:</span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--status-success)' }}>
-                {formatCurrency(selectedSale.total_amount)}
-              </span>
+            <div style={{ padding: '1rem', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)' }}>
+              <div className="flex-between" style={{ marginBottom: '0.5rem' }}>
+                <span style={{ fontWeight: 600 }}>Grand Total Amount:</span>
+                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--status-success)' }}>
+                  {formatCurrency(selectedSale.total_amount)}
+                </span>
+              </div>
+              <div className="flex-between">
+                <span style={{ color: 'var(--text-muted)' }}>Payment Status:</span>
+                <PaymentBadge status={selectedSale.payment_status} />
+              </div>
             </div>
           </div>
         )}
@@ -385,19 +427,6 @@ export const SalesPage = () => {
                 required
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Payment Status</label>
-              <select
-                className="form-select"
-                value={headerForm.payment_status}
-                onChange={(e) => setHeaderForm({ ...headerForm, payment_status: e.target.value })}
-              >
-                <option value="Paid">Paid</option>
-                <option value="Pending">Pending</option>
-                <option value="Partial">Partial</option>
-              </select>
-            </div>
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
@@ -412,6 +441,9 @@ export const SalesPage = () => {
               >
                 <PlusCircle size={14} /> Add Line Item
               </button>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+              Completing a sales order deducts the sold quantities from stock.
             </div>
 
             {itemsForm.map((item, index) => {

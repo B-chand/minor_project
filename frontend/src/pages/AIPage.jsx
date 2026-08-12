@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   TrendingUp,
   IndianRupee,
@@ -32,32 +32,77 @@ import { formatCurrency, formatDate } from '../utils/formatters';
 
 const currency = (value) => formatCurrency(value);
 
+const SectionError = ({ message }) => (
+  <div
+    style={{
+      padding: '1.5rem',
+      textAlign: 'center',
+      color: 'var(--status-danger)',
+      fontSize: '0.875rem',
+    }}
+  >
+    <AlertTriangle size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />
+    {message}
+  </div>
+);
+
 export const AIPage = () => {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [bi, setBi] = useState(null);
   const [inventorySummary, setInventorySummary] = useState(null);
-  const [error, setError] = useState('');
+  const [dashboardError, setDashboardError] = useState('');
+  const [biError, setBiError] = useState('');
+  const [inventoryError, setInventoryError] = useState('');
   const [windowFilter, setWindowFilter] = useState({ days: 30, bucket: 'month' });
 
+  const reloadTokenRef = useRef(0);
+
   const loadData = useCallback(async (filter = null) => {
+    const token = ++reloadTokenRef.current;
     setLoading(true);
-    setError('');
     try {
       const active = filter || windowFilter;
-      const [dashData, biData, invData] = await Promise.all([
+      const [dashResult, biResult, invResult] = await Promise.allSettled([
         getAIDashboard(),
         getBusinessIntelligence({ days: active.days, bucket: active.bucket }),
         getInventorySummary(),
       ]);
-      setDashboard(dashData);
-      setBi(biData);
-      setInventorySummary(invData);
+
+      if (token !== reloadTokenRef.current) return;
+
+      if (dashResult.status === 'fulfilled') {
+        setDashboard(dashResult.value);
+        setDashboardError('');
+      } else {
+        setDashboard(dashResult.value ?? null);
+        setDashboardError(getErrorMessage(dashResult.reason));
+      }
+
+      if (biResult.status === 'fulfilled') {
+        setBi(biResult.value);
+        setBiError('');
+      } else {
+        setBi(biResult.value ?? null);
+        setBiError(getErrorMessage(biResult.reason));
+      }
+
+      if (invResult.status === 'fulfilled') {
+        setInventorySummary(invResult.value);
+        setInventoryError('');
+      } else {
+        setInventorySummary(invResult.value ?? null);
+        setInventoryError(getErrorMessage(invResult.reason));
+      }
     } catch (err) {
       console.error(err);
-      setError(getErrorMessage(err));
+      setDashboardError(getErrorMessage(err));
+      setBiError(getErrorMessage(err));
+      setInventoryError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      if (token === reloadTokenRef.current) {
+        setLoading(false);
+      }
     }
   }, [windowFilter]);
 
@@ -75,7 +120,7 @@ export const AIPage = () => {
     return <Loader text="Running AI business analysis..." />;
   }
 
-  if (error) {
+  if (!dashboard && !bi) {
     return (
       <div>
         <div className="flex-between mb-6">
@@ -88,26 +133,22 @@ export const AIPage = () => {
           </button>
         </div>
         <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--status-danger)' }}>
-          {error}
+          {dashboardError || biError || 'Failed to load AI dashboard data.'}
         </div>
       </div>
     );
   }
 
-  if (!dashboard || !bi) {
-    return null;
-  }
+  const forecast = Array.isArray(dashboard?.forecast) ? dashboard.forecast : [];
+  const recommendations = Array.isArray(dashboard?.recommendations) ? dashboard.recommendations : [];
+  const insights = Array.isArray(dashboard?.insights) ? dashboard.insights : [];
 
-  const forecast = Array.isArray(dashboard.forecast) ? dashboard.forecast : [];
-  const recommendations = Array.isArray(dashboard.recommendations) ? dashboard.recommendations : [];
-  const insights = Array.isArray(dashboard.insights) ? dashboard.insights : [];
-
-  const overview = bi.business_overview || {};
-  const metrics = bi.dashboard_metrics || {};
-  const sales = bi.sales_intelligence || {};
-  const inventory = bi.inventory_intelligence || {};
-  const purchases = bi.purchase_intelligence || {};
-  const attention = bi.business_attention || {};
+  const overview = bi?.business_overview || {};
+  const metrics = bi?.dashboard_metrics || {};
+  const sales = bi?.sales_intelligence || {};
+  const inventory = bi?.inventory_intelligence || {};
+  const purchases = bi?.purchase_intelligence || {};
+  const attention = bi?.business_attention || {};
 
   const salesSummary = sales.summary || {};
   const trendPoints = Array.isArray(sales.trend?.points) ? sales.trend.points : [];
@@ -207,7 +248,9 @@ export const AIPage = () => {
             </span>
           }
         >
-          {!invSummary.has_data ? (
+          {inventoryError ? (
+            <SectionError message={inventoryError} />
+          ) : !invSummary.has_data ? (
             <EmptyState message={invSummary.summary || 'No inventory data to summarize yet.'} />
           ) : (
             <>
@@ -271,6 +314,13 @@ export const AIPage = () => {
       </div>
 
       {/* Business highlights + stock health */}
+      {biError && (
+        <div className="mb-6">
+          <div className="glass-card" style={{ padding: '0.25rem 0' }}>
+            <SectionError message={biError} />
+          </div>
+        </div>
+      )}
       <div className="grid-2 mb-6">
         <SectionCard icon={Crown} title="Business Highlights" color="var(--accent-secondary)">
           {!overview.top_selling_product && !overview.top_customer && !overview.top_supplier ? (
@@ -659,6 +709,13 @@ export const AIPage = () => {
       </div>
 
       {/* AI forecast & recommendations */}
+      {dashboardError && (
+        <div className="mb-6">
+          <div className="glass-card" style={{ padding: '0.25rem 0' }}>
+            <SectionError message={dashboardError} />
+          </div>
+        </div>
+      )}
       <div className="grid-2 mb-6">
         <SectionCard icon={TrendingUp} title="Demand Forecast" color="var(--accent-primary)">
           {forecast.length === 0 ? (

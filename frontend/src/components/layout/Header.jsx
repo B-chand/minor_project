@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Building, ShieldCheck } from 'lucide-react';
+import { Bell, LogOut, Building, ShieldCheck, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { notificationApi } from '../../api';
 
-export const Header = () => {
+export const Header = ({ onToggleSidebar, isMobile }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -29,7 +29,6 @@ export const Header = () => {
 
   const getRoleBadge = (role) => {
     switch (role) {
-      case 'SUPER_ADMIN': return 'Super Admin';
       case 'ADMIN': return 'Business Admin';
       case 'STAFF': return 'Staff';
       default: return role;
@@ -39,6 +38,16 @@ export const Header = () => {
   return (
     <header className="header">
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {isMobile && (
+          <button
+            className="header-menu-btn"
+            onClick={onToggleSidebar}
+            title="Open navigation"
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </button>
+        )}
         <div
           className="glass-card"
           style={{
@@ -54,6 +63,21 @@ export const Header = () => {
           <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
             {user?.organization || 'Tenant Organization'}
           </span>
+          {user?.business_code && (
+            <span
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 600,
+                color: 'var(--accent-primary)',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-full)',
+                padding: '0.1rem 0.5rem',
+              }}
+            >
+              {user.business_code}
+            </span>
+          )}
         </div>
       </div>
 

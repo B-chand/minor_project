@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Plus, Search, Edit2, Trash2, Phone, Mail, Award } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Phone, Mail, Award } from 'lucide-react';
 import { customerApi } from '../api';
 import { Modal, Loader, Pagination } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
@@ -10,6 +10,7 @@ export const CustomersPage = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -29,7 +30,7 @@ export const CustomersPage = () => {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const res = await customerApi.getAll({ page, search: search || undefined });
+      const res = await customerApi.getAll({ page, search: appliedSearch || undefined });
       setCustomers(res.data.results || res.data || []);
       setCount(res.data.count || (res.data || []).length);
     } catch (err) {
@@ -41,12 +42,13 @@ export const CustomersPage = () => {
 
   useEffect(() => {
     fetchCustomers();
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, appliedSearch]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setAppliedSearch(search.trim());
     setPage(1);
-    fetchCustomers();
   };
 
   const handleOpenModal = (c = null) => {

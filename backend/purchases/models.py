@@ -77,5 +77,8 @@ class PurchaseItem(models.Model):
         decimal_places=2
     )
 
+    class Meta:
+        ordering = ["id"]
+
     def __str__(self):
         return self.product.name

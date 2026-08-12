@@ -1,5 +1,73 @@
-import React from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
+
+export const PasswordInput = ({
+  value,
+  onChange,
+  placeholder,
+  required = false,
+  autoComplete = 'current-password',
+  leftIcon: LeftIcon = null,
+  style,
+  ...rest
+}) => {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {LeftIcon && (
+        <LeftIcon
+          size={18}
+          style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--text-dim)',
+          }}
+        />
+      )}
+      <input
+        type={visible ? 'text' : 'password'}
+        className="form-input"
+        style={{
+          paddingLeft: LeftIcon ? '2.5rem' : undefined,
+          paddingRight: '2.5rem',
+          ...style,
+        }}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        required={required}
+        autoComplete={autoComplete}
+        {...rest}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((prev) => !prev)}
+        style={{
+          position: 'absolute',
+          right: '8px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: 'none',
+          border: 'none',
+          color: 'var(--text-dim)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0.35rem',
+        }}
+        title={visible ? 'Hide password' : 'Show password'}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        tabIndex={-1}
+      >
+        {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
+};
+
 
 export const Loader = ({ text = 'Loading data...' }) => (
   <div className="flex-center" style={{ padding: '3rem 1rem', flexDirection: 'column', gap: '0.75rem' }}>

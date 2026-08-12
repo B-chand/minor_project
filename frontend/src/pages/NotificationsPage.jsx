@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bell, CheckCircle2, AlertTriangle, XCircle, ShoppingCart, ShoppingBag, Info, Trash2, CheckCheck } from 'lucide-react';
+import { AlertTriangle, XCircle, ShoppingCart, ShoppingBag, Info, Trash2, CheckCheck } from 'lucide-react';
 import { notificationApi } from '../api';
 import { Loader } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';

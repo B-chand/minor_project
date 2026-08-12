@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, Save, Globe, CreditCard, Shield } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { businessApi } from '../api';
 import { Loader } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';

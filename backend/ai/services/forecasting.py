@@ -18,6 +18,7 @@ def forecast_demand(organization=None):
             flat=True,
         )
         .distinct()
+        .order_by("product_id")
     )
 
     for product_id in product_ids:
@@ -60,7 +61,7 @@ def forecast_demand(organization=None):
         y = df["quantity"]
 
         model = RandomForestRegressor(
-            n_estimators=100,
+            n_estimators=10,
             random_state=42,
         )
 

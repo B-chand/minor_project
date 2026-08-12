@@ -45,15 +45,18 @@ export function App() {
             <Route path="/purchases" element={<PurchasesPage />} />
             <Route path="/sales" element={<SalesPage />} />
            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
 
-           {/* AI */}
-          <Route path="/ai" element={<AIPage />} />
+           {/* AI Chat — available to all authenticated users */}
           <Route path="/ai-assistant" element={<ChatbotPage />} />
-          <Route path="/ai-insights" element={<AIInsightsPage />} />
 
             {/* Admin Only */}
-         <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} />}>
+         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            <Route path="/reports" element={<ReportsPage />} />
+
+           {/* AI (admin modules) */}
+          <Route path="/ai" element={<AIPage />} />
+          <Route path="/ai-insights" element={<AIInsightsPage />} />
+
          <Route path="/staff" element={<StaffPage />} />
          <Route path="/business" element={<BusinessPage />} />
           </Route>

@@ -12,7 +12,7 @@ import { sendChatMessage, getChatErrorMessage } from '../services/chatbotService
 import { useNotification } from '../context/NotificationContext';
 
 const WELCOME_MESSAGE =
-  "Hi! I'm your AI inventory assistant. Ask me about your inventory, low-stock items, sales, purchases, customers, suppliers, or business performance.";
+  "Hi! I'm the AI Chat assistant for INVENTO, a smart multi-tenant inventory management system. I can help you with products, inventory, sales, purchases, customers, suppliers, and business operations.";
 
 const SUGGESTIONS = [
   'Which products are low in stock right now?',

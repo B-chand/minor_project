@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from core.mixins import TenantScopedSerializerMixin
+
 from .models import (
     Purchase,
     PurchaseItem,
@@ -10,7 +12,7 @@ from .models import (
 from notifications.services import create_notification
 
 
-class PurchaseItemSerializer(serializers.ModelSerializer):
+class PurchaseItemSerializer(TenantScopedSerializerMixin):
 
     product_name = serializers.ReadOnlyField(
         source="product.name"
@@ -132,7 +134,7 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
 
 
 
-class PurchaseSerializer(serializers.ModelSerializer):
+class PurchaseSerializer(TenantScopedSerializerMixin):
 
     supplier_name = serializers.ReadOnlyField(
         source="supplier.name"

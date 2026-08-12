@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Building, ArrowRight, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { PasswordInput } from '../components/common/UIComponents';
 
 const errorTextStyle = {
   fontSize: '0.8rem',
@@ -36,6 +37,7 @@ export const RegisterPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [registeredCode, setRegisteredCode] = useState('');
 
   const { register } = useAuth();
   const { showToast } = useNotification();
@@ -66,9 +68,10 @@ export const RegisterPage = () => {
     setFieldErrors({});
 
     try {
-      await register(formData);
-      showToast('Organization & Admin account registered successfully! Please log in.', 'success');
-      navigate('/login');
+      const data = await register(formData);
+      const code = data?.business_code || data?.organization_code || '';
+      setRegisteredCode(code);
+      showToast('Organization registered successfully! Save your Business Code.', 'success');
     } catch (err) {
       console.error('Registration error:', err);
       const data = err.response?.data;
@@ -128,13 +131,84 @@ export const RegisterPage = () => {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 700 }}>Register Organization</h1>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 700 }}>INVENTO</h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Set up your tenant business and primary admin user account
+            Register Organization — Set up your tenant business and primary admin user account
           </p>
         </div>
 
-        {errorMsg && (
+        {registeredCode && (
+          <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                margin: '0 auto 1rem',
+                background: 'var(--status-success-bg, rgba(34, 197, 94, 0.15))',
+                border: '2px solid var(--status-success, #22c55e)',
+                borderRadius: '50%',
+                color: 'var(--status-success, #22c55e)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.5rem',
+                fontWeight: 700,
+              }}
+            >
+              ✓
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+              Organization Registered!
+            </h2>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              Your tenant is ready. Save this Business Code — you will need it
+              together with your username and password to log in.
+            </p>
+            <div
+              style={{
+                margin: '1.25rem auto',
+                padding: '1rem',
+                background: 'var(--bg-tertiary)',
+                border: '2px dashed var(--accent-primary)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '1.5rem',
+                fontWeight: 700,
+                letterSpacing: '0.1em',
+                color: 'var(--accent-primary)',
+                width: 'fit-content',
+              }}
+            >
+              {registeredCode}
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={async () => {
+                  if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(registeredCode);
+                    showToast('Business Code copied!', 'success');
+                  } else {
+                    showToast('Select the code to copy it manually.', 'error');
+                  }
+                }}
+              >
+                Copy Code
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => navigate('/login')}
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!registeredCode && (
+          <>
+          {errorMsg && (
           <div
             style={{
               background: 'var(--status-danger-bg)',
@@ -148,7 +222,7 @@ export const RegisterPage = () => {
           >
             {errorMsg}
           </div>
-        )}
+          )}
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1.5rem' }}>
@@ -267,14 +341,13 @@ export const RegisterPage = () => {
               <div>
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     name="password"
-                    className="form-input"
                     placeholder="Strong password"
                     value={formData.password}
                     onChange={handleChange}
                     style={inputErrorStyle('password')}
+                    autoComplete="new-password"
                     required
                   />
                 </div>
@@ -330,6 +403,8 @@ export const RegisterPage = () => {
             Sign In
           </Link>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

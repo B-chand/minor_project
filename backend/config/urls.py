@@ -6,9 +6,10 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
 )
+
+from accounts.views import BusinessLoginView
 
 
 class HealthCheckView(APIView):
@@ -44,7 +45,7 @@ urlpatterns = [
 
     path(
         "api/token/",
-        TokenObtainPairView.as_view(),
+        BusinessLoginView.as_view(),
         name="token_obtain_pair",
     ),
 

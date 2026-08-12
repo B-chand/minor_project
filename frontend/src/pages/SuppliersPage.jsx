@@ -10,6 +10,7 @@ export const SuppliersPage = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
@@ -28,7 +29,7 @@ export const SuppliersPage = () => {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const res = await supplierApi.getAll({ page, search: search || undefined });
+      const res = await supplierApi.getAll({ page, search: appliedSearch || undefined });
       setSuppliers(res.data.results || res.data || []);
       setCount(res.data.count || (res.data || []).length);
     } catch (err) {
@@ -40,12 +41,13 @@ export const SuppliersPage = () => {
 
   useEffect(() => {
     fetchSuppliers();
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, appliedSearch]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setAppliedSearch(search.trim());
     setPage(1);
-    fetchSuppliers();
   };
 
   const handleOpenModal = (s = null) => {

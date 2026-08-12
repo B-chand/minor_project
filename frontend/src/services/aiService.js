@@ -30,8 +30,20 @@ export const getErrorMessage = (error) => {
     }
 
     const status = error.response?.status;
+
+    if (status === 404 && typeof data === "string") {
+        return "The AI data endpoint is not available on this server. Please make sure the backend is up to date and the AI module is enabled.";
+    }
+
     if (status && STATUS_MESSAGES[status]) {
         return STATUS_MESSAGES[status];
+    }
+
+    // axios aborts with ECONNABORTED when the request exceeds the client
+    // timeout. The backend may still be running (AI analysis is slow, e.g.
+    // the demand-forecast model under load) — do not claim it is unreachable.
+    if (error.code === "ECONNABORTED") {
+        return "The AI analysis is taking longer than expected. Please try again in a moment.";
     }
 
     if (!error.response) {
@@ -41,18 +53,13 @@ export const getErrorMessage = (error) => {
     return "Something went wrong while loading AI data. Please try again.";
 };
 
-export const getForecast = async () => {
-    const response = await api.get("/ai/forecast/");
+export const getForecastDetail = async () => {
+    const response = await api.get("/ai/forecast-detail/");
     return response.data;
 };
 
 export const getRecommendations = async () => {
     const response = await api.get("/ai/recommendation/");
-    return response.data;
-};
-
-export const getInsights = async () => {
-    const response = await api.get("/ai/insights-summary/");
     return response.data;
 };
 

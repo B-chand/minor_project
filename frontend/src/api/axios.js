@@ -6,18 +6,25 @@ const baseURL = normalizedBaseURL.endsWith('/api') ? normalizedBaseURL : `${norm
 
 const api = axios.create({
   baseURL,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to attach JWT token
+// Request interceptor to attach the JWT access token.
+// Login/refresh never get the Authorization header: authentication is
+// business_code + username + password.
 api.interceptors.request.use(
   (config) => {
+    const isTokenEndpoint =
+      config.url === '/token/' || config.url === '/token/refresh/';
+
     const token = localStorage.getItem('access_token');
-    if (token) {
+    if (token && !isTokenEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -29,7 +36,10 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isTokenEndpoint =
+      originalRequest?.url === '/token/' || originalRequest?.url === '/token/refresh/';
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isTokenEndpoint) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
 

@@ -79,6 +79,7 @@ export const productApi = {
 export const inventoryApi = {
   getAll: (params) => api.get('/inventory/inventory/', { params }),
   update: (id, data) => api.patch(`/inventory/inventory/${id}/`, data),
+  adjust: (id, data) => api.post(`/inventory/inventory/${id}/adjust/`, data),
   getMovements: (params) => api.get('/inventory/stock-movements/', { params }),
   createMovement: (data) => api.post('/inventory/stock-movements/', data),
 };
@@ -126,6 +127,7 @@ export const saleApi = {
   delete: (id) => api.delete(`/sales/sales/${id}/`),
   addItem: (itemData) => api.post('/sales/sale-items/', itemData),
   deleteItem: (itemId) => api.delete(`/sales/sale-items/${itemId}/`),
+  recordPayment: (id, data) => api.post(`/sales/sales/${id}/record-payment/`, data),
 };
 
 // =====================================
@@ -141,11 +143,13 @@ export const notificationApi = {
 // REPORTS & DASHBOARD APIs
 // =====================================
 export const reportApi = {
-  getDashboard: () => api.get('/reports/dashboard/'),
+  getDashboard: (params) => api.get('/reports/dashboard/', { params }),
   getSalesReport: () => api.get('/reports/sales/'),
+  getPurchasesReport: (params) => api.get('/reports/purchases/', { params }),
   getLowStockReport: () => api.get('/reports/low-stock/'),
   getAllSaved: () => api.get('/reports/'),
   createReport: (data) => api.post('/reports/', data),
+  deleteReport: (id) => api.delete(`/reports/${id}/`),
 };
 
 // =====================================
@@ -157,4 +161,5 @@ export const aiInsightApi = {
   create: (data) => api.post('/ai/insights/', data),
   update: (id, data) => api.patch(`/ai/insights/${id}/`, data),
   delete: (id) => api.delete(`/ai/insights/${id}/`),
+  generate: () => api.post('/ai/insights/generate/'),
 };

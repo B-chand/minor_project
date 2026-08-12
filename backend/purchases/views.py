@@ -17,6 +17,17 @@ class PurchaseViewSet(TenantModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
 
+    search_fields = [
+        "invoice_number",
+        "supplier__name",
+        "supplier__contact_person",
+    ]
+
+    filterset_fields = [
+        "status",
+        "purchase_date",
+    ]
+
     def _reduce_stock(self, item):
         from inventory.models import Inventory, StockMovement
 
@@ -58,10 +69,11 @@ class PurchaseItemViewSet(TenantModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return self.queryset
+        organization = getattr(user, "organization", None)
+        if not organization:
+            return self.queryset.none()
         return self.queryset.filter(
-            purchase__organization=user.organization
+            purchase__organization=organization
         )
 
     def destroy(self, request, *args, **kwargs):

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from '../api';
 
 const AuthContext = createContext();
@@ -7,7 +7,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = async () => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       setUser(null);
@@ -26,9 +26,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  const restoreSession = useCallback(async () => {
+  const restoreSession = async () => {
     const refreshToken = localStorage.getItem('refresh_token');
 
     if (!refreshToken) {
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setLoading(false);
     }
-  }, [fetchProfile]);
+  };
 
   useEffect(() => {
     const bootAuth = async () => {
@@ -63,14 +63,14 @@ export const AuthProvider = ({ children }) => {
     };
 
     bootAuth();
-  }, [fetchProfile, restoreSession]);
+  }, []);
 
-  const login = async (username, password) => {
-    const response = await authApi.login({ username, password });
-    const { access, refresh } = response.data;
+  const login = async ({ business_code, username, password }) => {
+    const response = await authApi.login({ business_code, username, password });
+    const { access, refresh, user: loggedInUser } = response.data;
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
-    await fetchProfile();
+    setUser(loggedInUser);
     return response.data;
   };
 

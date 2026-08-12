@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AIInsightViewSet,
     ForecastAPIView,
+    ForecastDetailAPIView,
     RecommendationAPIView,
     InsightsAPIView,
     AIDashboardAPIView,
@@ -30,6 +31,12 @@ urlpatterns = [
         "forecast/",
         ForecastAPIView.as_view(),
         name="forecast",
+    ),
+
+    path(
+        "forecast-detail/",
+        ForecastDetailAPIView.as_view(),
+        name="forecast-detail",
     ),
 
     path(

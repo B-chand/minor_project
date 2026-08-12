@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase
 from django.test import override_settings
 from datetime import date, timedelta
@@ -14,6 +15,18 @@ from customers.models import Customer
 from suppliers.models import Supplier
 from sales.models import Sale, SaleItem
 
+from ai.models import AIInsight
+from ai.services.insights import (
+    build_insight_candidates,
+    persist_generated_insights,
+)
+from ai.services.forecast_detail import (
+    HISTORICAL_WEEKS,
+    FORECAST_WEEKS,
+    MIN_SALE_ITEMS,
+    MIN_NONZERO_WEEKS,
+    build_forecast_detail,
+)
 from ai.services.tools import (
     dispatch_tool,
     sales_growth,
@@ -2009,6 +2022,7 @@ class BusinessIntelligenceEndpointTests(TestCase):
             username="empty-bi",
             email="empty-bi@example.com",
             password="pass123",
+            role="ADMIN",
             organization=empty,
         )
         client = APIClient()
@@ -2439,3 +2453,601 @@ class InventorySummaryEndpointTests(TestCase):
             self.assertEqual(data["population"]["stock_units"], 0)
             for section in (data["low_stock"], data["out_of_stock"], data["no_sales"]):
                 self.assertEqual(section, [])
+
+
+class GeneratedInsightsTests(TestCase):
+    """The insight generator must coexist with existing AIInsight rows.
+
+    It never deletes/edits existing insights (manual or demo), dedupes
+    conservatively on organization + insight_type + title, and is safe to
+    run repeatedly.
+    """
+
+    def setUp(self):
+        self.org = _mk_org("Insightgen")
+        category = Category.objects.create(organization=self.org, name="Grocery")
+        self.product = Product.objects.create(
+            organization=self.org, category=category,
+            name="Coconut Oil", sku="CO-1",
+            buying_price=80, selling_price=160,
+        )
+        Inventory.objects.create(
+            organization=self.org, product=self.product,
+            quantity=5, minimum_stock=12,
+        )
+        for day in (1, 4, 8, 12, 20):
+            sale = Sale.objects.create(
+                organization=self.org, invoice_number=f"INV-G-{day}",
+                sale_date=date.today() - timedelta(days=day), total_amount=480,
+            )
+            SaleItem.objects.create(
+                sale=sale, product=self.product, quantity=3,
+                unit_price=160, subtotal=480,
+            )
+
+    def test_candidates_are_derived_from_live_data(self):
+        titles = {c["title"] for c in build_insight_candidates(self.org)}
+        self.assertIn("Low stock: Coconut Oil", titles)
+        self.assertIn("Best seller: Coconut Oil", titles)
+        self.assertIn("Demand forecast: Coconut Oil", titles)
+        self.assertIn("Sales activity snapshot", titles)
+
+    def test_first_run_creates_missing_insights(self):
+        result = persist_generated_insights(self.org)
+        self.assertTrue(result["created"])
+        self.assertEqual(result["skipped"], [])
+        self.assertGreater(AIInsight.objects.filter(organization=self.org).count(), 0)
+
+    def test_second_run_is_idempotent(self):
+        persist_generated_insights(self.org)
+        count_after_first = AIInsight.objects.filter(organization=self.org).count()
+        result = persist_generated_insights(self.org)
+        self.assertEqual(result["created"], [])
+        self.assertEqual(len(result["skipped"]), count_after_first)
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org).count(),
+            count_after_first,
+        )
+
+    def test_manual_insight_is_kept_and_not_duplicated(self):
+        manual = AIInsight.objects.create(
+            organization=self.org,
+            title="Low stock: Coconut Oil",
+            description="Set by hand.",
+            insight_type="LOW_STOCK",
+            generated_by="Manual",
+        )
+        before = AIInsight.objects.filter(organization=self.org).count()
+        result = persist_generated_insights(self.org)
+        self.assertTrue(AIInsight.objects.filter(pk=manual.pk).exists())
+        self.assertNotIn("Low stock: Coconut Oil", result["created"])
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org).count(),
+            before + len(result["created"]),
+        )
+
+    def test_other_organizations_are_isolated(self):
+        other = _mk_org("Insightgen-other")
+        persist_generated_insights(self.org)
+        self.assertEqual(AIInsight.objects.filter(organization=other).count(), 0)
+
+    def test_command_runs_safely_and_repeatedly(self):
+        call_command("generate_ai_insights", orgs=[self.org.name])
+        first_count = AIInsight.objects.filter(organization=self.org).count()
+        self.assertGreater(first_count, 0)
+        call_command("generate_ai_insights", orgs=[self.org.name])
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org).count(),
+            first_count,
+        )
+
+
+def _seed_data(
+        org, product_name, sku, buying_price=50, selling_price=100,
+        quantity=2, minimum_stock=10):
+    """Give an org realistic data so candidate insights can be produced."""
+    category = Category.objects.create(organization=org, name="Drinks")
+    product = Product.objects.create(
+        organization=org, category=category, name=product_name, sku=sku,
+        buying_price=buying_price, selling_price=selling_price,
+    )
+    Inventory.objects.create(
+        organization=org, product=product,
+        quantity=quantity, minimum_stock=minimum_stock,
+    )
+    for day in (1, 3, 6, 10):
+        sale = Sale.objects.create(
+            organization=org, invoice_number=f"{sku}-INV-{day}",
+            sale_date=date.today() - timedelta(days=day), total_amount=100,
+        )
+        SaleItem.objects.create(
+            sale=sale, product=product, quantity=2,
+            unit_price=selling_price, subtotal=200,
+        )
+
+
+class AIInsightGenerateAPIViewTests(TestCase):
+    """POST /api/ai/insights/generate/ tenant-safe generation endpoint."""
+
+    URL = "/api/ai/insights/generate/"
+
+    def setUp(self):
+        self.org_a = _mk_org("GenApiA")
+        self.org_b = _mk_org("GenApiB")
+        self.org_empty = _mk_org("GenApiEmpty")
+        self.user_a = User.objects.create_user(
+            username="gen-api-a", email="gena@example.com",
+            password="pass123", role="ADMIN", organization=self.org_a,
+        )
+        self.user_b = User.objects.create_user(
+            username="gen-api-b", email="genb@example.com",
+            password="pass123", role="ADMIN", organization=self.org_b,
+        )
+        self.user_empty = User.objects.create_user(
+            username="gen-api-empty", email="gene@example.com",
+            password="pass123", role="ADMIN", organization=self.org_empty,
+        )
+        _seed_data(self.org_a, "Mango Juice", "MJ-1")
+        _seed_data(self.org_b, "Ginger Tea", "GT-1")
+        self.client = APIClient()
+
+    def test_unauthenticated_request_is_rejected(self):
+        res = self.client.post(self.URL, {}, format="json")
+        self.assertEqual(res.status_code, 401)
+
+    def test_authenticated_user_generates_for_own_organization(self):
+        self.client.force_authenticate(self.user_a)
+        res = self.client.post(self.URL, {}, format="json")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertGreater(data["created"], 0)
+        self.assertEqual(data["skipped"], 0)
+        self.assertEqual(
+            data["message"], "AI insights generated successfully."
+        )
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org_a).count(),
+            data["created"],
+        )
+
+    def test_forged_organization_body_cannot_affect_generation(self):
+        self.client.force_authenticate(self.user_a)
+        body = {
+            "organization": self.org_b.pk,
+            "organization_id": self.org_b.pk,
+            "tenant_id": self.org_b.pk,
+            "org": self.org_b.pk,
+        }
+        res = self.client.post(self.URL, body, format="json")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertGreater(data["created"], 0)
+        self.assertEqual(AIInsight.objects.filter(organization=self.org_b).count(), 0)
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org_a).count(),
+            data["created"],
+        )
+
+    def test_query_tenant_id_cannot_affect_generation(self):
+        self.client.force_authenticate(self.user_a)
+        res = self.client.post(
+            f"{self.URL}?organization={self.org_b.pk}&tenant_id={self.org_b.pk}",
+            {}, format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertGreater(data["created"], 0)
+        self.assertEqual(AIInsight.objects.filter(organization=self.org_b).count(), 0)
+
+    def test_org_a_cannot_access_org_b_insights(self):
+        self.client.force_authenticate(self.user_b)
+        self.client.post(self.URL, {}, format="json")
+        self.assertGreater(
+            AIInsight.objects.filter(organization=self.org_b).count(), 0
+        )
+        b_ids = set(
+            AIInsight.objects.filter(organization=self.org_b)
+            .values_list("id", flat=True)
+        )
+        self.client.force_authenticate(self.user_a)
+        res = self.client.get("/api/ai/insights/")
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()
+        results = (
+            payload["results"] if isinstance(payload, dict) and "results" in payload
+            else payload
+        )
+        a_ids = {item["id"] for item in results}
+        self.assertTrue(a_ids.isdisjoint(b_ids))
+
+    def test_existing_insights_are_preserved_and_not_modified(self):
+        manual = AIInsight.objects.create(
+            organization=self.org_a,
+            title="Manual note",
+            description="Written by hand.",
+            insight_type="ANALYSIS",
+            generated_by="Manual",
+            is_active=False,
+        )
+        self.client.force_authenticate(self.user_a)
+        res = self.client.post(self.URL, {}, format="json")
+        self.assertEqual(res.status_code, 200)
+        manual.refresh_from_db()
+        self.assertTrue(AIInsight.objects.filter(pk=manual.pk).exists())
+        self.assertEqual(manual.title, "Manual note")
+        self.assertEqual(manual.description, "Written by hand.")
+        self.assertEqual(manual.generated_by, "Manual")
+        self.assertFalse(manual.is_active)
+
+    def test_repeated_generation_creates_no_duplicates(self):
+        self.client.force_authenticate(self.user_a)
+        first = self.client.post(self.URL, {}, format="json").json()
+        count_after_first = AIInsight.objects.filter(organization=self.org_a).count()
+        second = self.client.post(self.URL, {}, format="json").json()
+        self.assertEqual(second["created"], 0)
+        self.assertEqual(second["skipped"], first["created"])
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org_a).count(),
+            count_after_first,
+        )
+
+    def test_endpoint_never_deletes_existing_records(self):
+        before = AIInsight.objects.filter(organization=self.org_a).count()
+        self.client.force_authenticate(self.user_a)
+        for _ in range(2):
+            res = self.client.post(self.URL, {}, format="json")
+            self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(
+            AIInsight.objects.filter(organization=self.org_a).count(), before
+        )
+
+    def test_empty_organization_data_does_not_crash(self):
+        self.client.force_authenticate(self.user_empty)
+        res = self.client.post(self.URL, {}, format="json")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["created"], 0)
+        self.assertEqual(data["skipped"], 0)
+        self.assertEqual(
+            AIInsight.objects.filter(organization=self.org_empty).count(), 0
+        )
+
+    def test_generation_is_post_only(self):
+        self.client.force_authenticate(self.user_a)
+        self.assertEqual(self.client.get(self.URL).status_code, 405)
+        self.assertEqual(
+            self.client.put(self.URL, {}, format="json").status_code, 405
+        )
+        self.assertEqual(
+            self.client.patch(self.URL, {}, format="json").status_code, 405
+        )
+        self.assertEqual(
+            self.client.delete(self.URL).status_code, 405
+        )
+
+
+def _week_start_of(day):
+    return day - timedelta(days=day.weekday())
+
+
+class ForecastDetailServiceTests(TestCase):
+    """Product-specific weekly forecasting must be built only from the
+    selected product's own real sales records:
+
+    - the historical series is the product's own weekly demand (zero-filled)
+    - the forecast is a defensible statistical projection of that same series
+    - products without enough history get an explicit insufficient-data state
+    """
+
+    TODAY = date(2026, 8, 10)  # a Monday -> stable week buckets
+
+    def setUp(self):
+        self.org = _mk_org("ForecastDetail")
+        category = Category.objects.create(
+            organization=self.org, name="Meds"
+        )
+        self.paracetamol = Product.objects.create(
+            organization=self.org, category=category,
+            name="Paracetamol 500mg", sku="PARA-1",
+            buying_price=25, selling_price=60,
+        )
+        self.product_b = Product.objects.create(
+            organization=self.org, category=category,
+            name="Product B", sku="PRODB-1",
+            buying_price=40, selling_price=80,
+        )
+        Inventory.objects.create(
+            organization=self.org, product=self.paracetamol,
+            quantity=90, minimum_stock=30,
+        )
+        Inventory.objects.create(
+            organization=self.org, product=self.product_b,
+            quantity=5, minimum_stock=20,
+        )
+
+    def _sale(self, product, days_ago, quantity):
+        sale_date = self.TODAY - timedelta(days=days_ago)
+        sale = Sale.objects.create(
+            organization=self.org,
+            invoice_number=f"INV-{product.pk}-{days_ago}",
+            sale_date=sale_date,
+            total_amount=quantity * 60,
+        )
+        SaleItem.objects.create(
+            sale=sale, product=product, quantity=quantity,
+            unit_price=60, subtotal=quantity * 60,
+        )
+        return sale
+
+    def _one(self, detail, name):
+        matches = [p for p in detail["products"]
+                   if p["product"]["name"] == name]
+        self.assertEqual(len(matches), 1, f"expected one payload for {name}")
+        return matches[0]
+
+    def _bucketed_weeks(self, product):
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        payload = self._one(detail, product.name)
+        self.assertEqual(payload["status"], "ok")
+        return [point["units"] for point in payload["historical"]]
+
+    def test_weekly_aggregation_sums_quantity_per_week(self):
+        sale = self._sale(self.paracetamol, 7, 10)
+        SaleItem.objects.create(
+            sale=sale, product=self.paracetamol, quantity=3,
+            unit_price=60, subtotal=180,
+        )
+        for offset, qty in ((14, 7), (28, 8), (35, 5), (42, 2)):
+            self._sale(self.paracetamol, offset, qty)
+        weeks = self._bucketed_weeks(self.paracetamol)
+        starts = [
+            self.TODAY - timedelta(weeks=HISTORICAL_WEEKS - 1 - i)
+            for i in range(HISTORICAL_WEEKS)
+        ]
+        index_w = {w: i for i, w in enumerate(starts)}
+        week_of_offset7 = index_w[_week_start_of(
+            self.TODAY - timedelta(days=7)
+        )]
+        self.assertEqual(weeks[week_of_offset7], 13)
+        self.assertEqual(sum(weeks), 35)
+
+    def test_historical_has_twelve_contiguous_zero_filled_weeks(self):
+        self._sale(self.paracetamol, 0, 10)
+        self._sale(self.paracetamol, 7, 10)
+        self._sale(self.paracetamol, 14, 7)
+        self._sale(self.paracetamol, 42, 5)
+        self._sale(self.paracetamol, 70, 4)
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        payload = self._one(detail, self.paracetamol.name)
+        weeks = [point["units"] for point in payload["historical"]]
+        self.assertEqual(len(weeks), HISTORICAL_WEEKS)
+        self.assertEqual(sum(weeks), 36)
+        for units in weeks:
+            self.assertGreaterEqual(units, 0)
+
+        starts = [
+            self.TODAY - timedelta(weeks=HISTORICAL_WEEKS - 1 - i)
+            for i in range(HISTORICAL_WEEKS)
+        ]
+        for i, start in enumerate(starts):
+            expected_units = sum(
+                item.quantity
+                for item in SaleItem.objects.filter(
+                    sale__organization=self.org, product=self.paracetamol
+                )
+                if _week_start_of(item.sale.sale_date) == start
+            )
+            self.assertEqual(weeks[i], expected_units)
+        self.assertEqual(detail["historical_weeks"], HISTORICAL_WEEKS)
+        self.assertEqual(detail["forecast_weeks"], FORECAST_WEEKS)
+
+    def test_different_products_produce_different_historical_lines(self):
+        for offset, qty in ((7, 10), (20, 6), (35, 2), (49, 8), (63, 5)):
+            self._sale(self.paracetamol, offset, qty)
+        for offset, qty in ((2, 12), (9, 3), (36, 7), (58, 1), (60, 9)):
+            self._sale(self.product_b, offset, qty)
+
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        para = self._one(detail, self.paracetamol.name)
+        prod_b = self._one(detail, self.product_b.name)
+        self.assertNotEqual(
+            [p["units"] for p in para["historical"]],
+            [p["units"] for p in prod_b["historical"]],
+        )
+        self.assertEqual(
+            sum(p["units"] for p in para["historical"]),
+            31,
+        )
+        self.assertEqual(
+            sum(p["units"] for p in prod_b["historical"]),
+            32,
+        )
+
+    def test_forecast_is_four_distinct_increasing_weeks(self):
+        # Increasing history -> a positive linear trend -> strictly rising
+        # forecast, proving the four weeks are computed, not one value copied.
+        for weeks_ago, qty in (
+            (5, 5), (4, 7), (3, 9), (2, 11), (1, 13), (0, 15),
+        ):
+            self._sale(self.paracetamol, 7 * weeks_ago, qty)
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        payload = self._one(detail, self.paracetamol.name)
+        forecast = [point["units"] for point in payload["forecast"]]
+        self.assertEqual(len(forecast), FORECAST_WEEKS)
+        self.assertTrue(all(units >= 0 for units in forecast))
+        for i in range(FORECAST_WEEKS):
+            expected_week = (self.TODAY + timedelta(weeks=i + 1)).isoformat()
+            self.assertEqual(payload["forecast"][i]["week"], expected_week)
+        self.assertEqual(payload["forecast_total"], sum(forecast))
+        self.assertLess(forecast[0], forecast[-1],
+                        "forecast must vary across weeks, never a flat copy")
+
+    def test_insufficient_history_gets_honest_empty_state(self):
+        self._sale(self.paracetamol, 3, 2)
+        self._sale(self.paracetamol, 4, 6)
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        payload = self._one(detail, self.paracetamol.name)
+        self.assertFalse(payload["forecastable"])
+        self.assertEqual(payload["status"], "insufficient_data")
+        self.assertIsNone(payload["historical"])
+        self.assertIsNone(payload["forecast"])
+        self.assertIn("Not enough sales history", payload["message"])
+        self.assertIn(
+            "requires more historical sales", payload["message"]
+        )
+
+    def test_insufficient_when_few_distinct_weeks(self):
+        for weeks_ago in (5, 4, 3):  # only 3 distinct weeks -> below minimum
+            self._sale(self.paracetamol, 7 * weeks_ago, 3)
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        payload = self._one(detail, self.paracetamol.name)
+        self.assertFalse(payload["forecastable"])
+        self.assertEqual(payload["status"], "insufficient_data")
+        self.assertEqual(payload["observed_weeks"], 3)
+
+    def test_products_without_sales_are_not_invented(self):
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        names = {p["product"]["name"] for p in detail["products"]}
+        self.assertEqual(names, set())
+
+    def test_forecastable_products_are_sorted_first(self):
+        self._sale(self.paracetamol, 7, 10)
+        self._sale(self.paracetamol, 14, 10)
+        self._sale(self.paracetamol, 21, 10)
+        self._sale(self.paracetamol, 28, 10)
+        self._sale(self.paracetamol, 35, 10)
+        self._sale(self.product_b, 3, 2)
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        self.assertTrue(detail["products"][0]["forecastable"])
+        flags = [item["forecastable"] for item in detail["products"]]
+        self.assertEqual(flags, sorted(flags, key=lambda flag: not flag))
+
+    def test_org_data_never_leaks_between_tenants(self):
+        other = _mk_org("ForecastOther")
+        cat = Category.objects.create(organization=other, name="Cats")
+        foreign = Product.objects.create(
+            organization=other, category=cat, name="Foreign Pill",
+            sku="FOR-1", buying_price=10, selling_price=20,
+        )
+        Inventory.objects.create(organization=other, product=foreign,
+                                  quantity=9, minimum_stock=2)
+        self._sale(foreign, 7, quantity=5)
+        for offset in (7, 14, 21, 35, 42):
+            self._sale(self.paracetamol, offset, 6)
+        for offset in (7, 14, 21, 35, 42):
+            self._sale(self.product_b, offset, 4)
+        detail = build_forecast_detail(self.org, today=self.TODAY)
+        names = {p["product"]["name"] for p in detail["products"]}
+        self.assertNotIn("Foreign Pill", names)
+        self.assertEqual(names, {
+            self.paracetamol.name, self.product_b.name,
+        })
+
+
+class ForecastDetailEndpointTests(TestCase):
+    """GET /api/ai/forecast-detail/ is tenant-scoped, read-only and works
+    with the authenticated user's organization only."""
+
+    URL = "/api/ai/forecast-detail/"
+
+    def setUp(self):
+        self.org_a = _mk_org("FdOrgA")
+        self.org_b = _mk_org("FdOrgB")
+        cat_a = Category.objects.create(
+            organization=self.org_a, name="Drugs"
+        )
+        cat_b = Category.objects.create(
+            organization=self.org_b, name="Drugs"
+        )
+        self.product = Product.objects.create(
+            organization=self.org_a, category=cat_a,
+            name="Aspirin 325mg", sku="ASP-1",
+            buying_price=20, selling_price=45,
+        )
+        Inventory.objects.create(
+            organization=self.org_a, product=self.product,
+            quantity=50, minimum_stock=10,
+        )
+        self.foreign = Product.objects.create(
+            organization=self.org_b, category=cat_b,
+            name="Foreign Syrup", sku="STR-1",
+            buying_price=30, selling_price=70,
+        )
+        Inventory.objects.create(
+            organization=self.org_b, product=self.foreign,
+            quantity=8, minimum_stock=4,
+        )
+        today = date(2026, 8, 10)
+        for invoice, offset, qty in (
+            ("FD-1", 0, 5), ("FD-2", 7, 4), ("FD-3", 14, 6),
+            ("FD-4", 21, 3), ("FD-5", 28, 8),
+        ):
+            sale = Sale.objects.create(
+                organization=self.org_a, invoice_number=invoice,
+                sale_date=today - timedelta(days=offset),
+                total_amount=qty * 45,
+            )
+            SaleItem.objects.create(
+                sale=sale, product=self.product, quantity=qty,
+                unit_price=45, subtotal=qty * 45,
+            )
+        # seed real foreign sales so isolation is provable
+        sale = Sale.objects.create(
+            organization=self.org_b, invoice_number="FOR-1",
+            sale_date=today - timedelta(days=14), total_amount=100,
+        )
+        SaleItem.objects.create(
+            sale=sale, product=self.foreign, quantity=10,
+            unit_price=70, subtotal=700,
+        )
+        self.user_a = User.objects.create_user(
+            username="fd-a", email="fda@example.com",
+            password="pass123", role="ADMIN", organization=self.org_a,
+        )
+        self.user_b = User.objects.create_user(
+            username="fd-b", email="fdb@example.com",
+            password="pass123", role="ADMIN", organization=self.org_b,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user_a)
+
+    def test_requires_authentication(self):
+        res = APIClient().get(self.URL)
+        self.assertEqual(res.status_code, 401)
+
+    def test_read_only_endpoint(self):
+        self.assertEqual(self.client.post(self.URL, {}).status_code, 405)
+        self.assertEqual(self.client.put(self.URL, {}).status_code, 405)
+        self.assertEqual(self.client.delete(self.URL).status_code, 405)
+
+    def test_returns_products_for_authenticated_tenant(self):
+        res = self.client.get(self.URL)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["granularity"], "week")
+        self.assertEqual(data["historical_weeks"], HISTORICAL_WEEKS)
+        self.assertEqual(data["forecast_weeks"], FORECAST_WEEKS)
+        self.assertTrue(any(
+            p["product"]["name"] == "Aspirin 325mg"
+            for p in data["products"]
+        ))
+
+    def test_org_from_query_string_is_ignored(self):
+        res = self.client.get(
+            f"{self.URL}?organization={self.org_b.pk}"
+            f"&tenant_id={self.org_b.pk}&company_id={self.org_b.pk}"
+        )
+        self.assertEqual(res.status_code, 200)
+        names = {p["product"]["name"] for p in res.json()["products"]}
+        self.assertIn("Aspirin 325mg", names)
+        self.assertNotIn("Foreign Syrup", names)
+
+    def test_tenant_isolation(self):
+        data = self.client.get(self.URL).json()
+        names = {p["product"]["name"] for p in data["products"]}
+        self.assertNotIn("Foreign Syrup", names)
+        self.client.force_authenticate(self.user_b)
+        data_b = self.client.get(self.URL).json()
+        names_b = {p["product"]["name"] for p in data_b["products"]}
+        self.assertIn("Foreign Syrup", names_b)
+        self.assertNotIn("Aspirin 325mg", names_b)

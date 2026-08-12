@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export const Sidebar = () => {
+export const Sidebar = ({ onNavigate }) => {
   const { user, hasRole } = useAuth();
 
   const navItems = [
@@ -32,69 +32,58 @@ export const Sidebar = () => {
   { label: 'Purchases', path: '/purchases', icon: ShoppingBag },
   { label: 'Sales', path: '/sales', icon: ShoppingCart },
   { label: 'Notifications', path: '/notifications', icon: Bell },
-  { label: 'Reports', path: '/reports', icon: BarChart3 },
-  { label: 'AI Assistant', path: '/ai', icon: Cpu },
   { label: 'AI Chat', path: '/ai-assistant', icon: MessageSquare },
-  { label: 'AI Insights', path: '/ai-insights', icon: FileText },
 ];
 
   const adminItems = [
+    { label: 'Reports', path: '/reports', icon: BarChart3 },
+    { label: 'AI Assistant', path: '/ai', icon: Cpu },
+    { label: 'AI Insights', path: '/ai-insights', icon: FileText },
     { label: 'Staff Management', path: '/staff', icon: UserCheck },
     { label: 'Business Settings', path: '/business', icon: Building2 },
   ];
 
+  const renderNavItem = (item) => {
+    const Icon = item.icon;
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        onClick={onNavigate}
+        className={({ isActive }) =>
+          `nav-item ${isActive ? 'active' : ''}`
+        }
+      >
+        <Icon size={18} />
+        <span>{item.label}</span>
+      </NavLink>
+    );
+  };
+
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Sidebar navigation">
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
           <Cpu size={22} />
         </div>
-        <div>
-          <div className="sidebar-logo-text">SmartInventory</div>
+        <div className="sidebar-logo-texts">
+          <div className="sidebar-logo-text">INVENTO</div>
           <div style={{ fontSize: '0.6875rem', color: 'var(--text-dim)' }}>
-            {user?.organization || 'Multi-Tenant OS'}
+            {user?.organization || 'INVENTO'}
           </div>
         </div>
       </div>
 
       <nav className="sidebar-nav">
         <div className="nav-section-title">Core Operations</div>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `nav-item ${isActive ? 'active' : ''}`
-              }
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
+        {navItems.map(renderNavItem)}
 
-        {hasRole(['ADMIN', 'SUPER_ADMIN']) && (
+        {hasRole('ADMIN') && (
           <>
             <div className="nav-section-title" style={{ marginTop: '1rem' }}>
               Administration
             </div>
-            {adminItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `nav-item ${isActive ? 'active' : ''}`
-                  }
-                >
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
+            {adminItems.map(renderNavItem)}
           </>
         )}
       </nav>

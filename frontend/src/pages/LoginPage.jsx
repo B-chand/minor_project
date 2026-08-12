@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Cpu, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Cpu, Lock, User, Building2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { PasswordInput } from '../components/common/UIComponents';
 
 export const LoginPage = () => {
+  const [businessCode, setBusinessCode] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -25,14 +27,21 @@ export const LoginPage = () => {
     setErrorMsg('');
 
     try {
-      await login(username, password);
+      await login({
+        business_code: businessCode.trim() || undefined,
+        username,
+        password,
+      });
       showToast('Successfully logged in!', 'success');
       navigate('/dashboard');
     } catch (err) {
       console.error('Login error:', err);
-      const msg = err.response?.data?.detail || 'Invalid username or password.';
-      setErrorMsg(msg);
-      showToast(msg, 'error');
+      const data = err.response?.data;
+      const msg =
+        (typeof data === 'object' && data && (data.detail || data.non_field_errors)) ||
+        'Invalid business code, username or password.';
+      setErrorMsg(Array.isArray(msg) ? msg[0] : msg);
+      showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -72,9 +81,9 @@ export const LoginPage = () => {
           >
             <Cpu size={32} />
           </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Smart Multi-Tenant OS</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>INVENTO</h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            AI-Powered Inventory & Business Solution
+            Smart Multi-Tenant Inventory Management System
           </p>
         </div>
 
@@ -95,6 +104,30 @@ export const LoginPage = () => {
         )}
 
         <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Business Code</label>
+            <div style={{ position: 'relative' }}>
+              <Building2
+                size={18}
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-dim)',
+                }}
+              />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: '2.5rem' }}
+                placeholder="Enter your business code"
+                value={businessCode}
+                onChange={(e) => setBusinessCode(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="form-group">
             <label className="form-label">Username</label>
             <div style={{ position: 'relative' }}>
@@ -122,27 +155,13 @@ export const LoginPage = () => {
 
           <div className="form-group" style={{ marginBottom: '1.75rem' }}>
             <label className="form-label">Password</label>
-            <div style={{ position: 'relative' }}>
-              <Lock
-                size={18}
-                style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--text-dim)',
-                }}
-              />
-              <input
-                type="password"
-                className="form-input"
-                style={{ paddingLeft: '2.5rem' }}
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+            <PasswordInput
+              leftIcon={Lock}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
           </div>
 
           <button

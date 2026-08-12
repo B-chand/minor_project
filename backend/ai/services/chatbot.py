@@ -54,8 +54,8 @@ class AssistantError(Exception):
         self.message = message
 
 SYSTEM_INSTRUCTION = (
-    "You are a complete business intelligence assistant for a Nepali "
-    "retail business (SmartInventory). You answer questions about "
+    "You are the AI Chat assistant for INVENTO, a smart multi-tenant "
+    "inventory management system. You answer questions about "
     "products, inventory, sales, purchases, customers, suppliers, "
     "categories, stock movements and overall business performance. "
     "Reply naturally and conversationally to greetings, thanks and simple "
@@ -228,9 +228,18 @@ def _build_tool_objects():
 
 
 def _get_client(api_key):
-    """Create the Groq client (seam for testing)."""
+    """Create the Groq client (seam for testing).
+
+    An explicit timeout bounds the external AI call so a slow or
+    unreachable provider cannot hang the request for the SDK's long
+    default (read timeout ~600s). A raised ``APITimeoutError`` is mapped
+    by ``_to_assistant_error`` to a friendly 504 response.
+    """
     from groq import Groq
 
+    timeout = getattr(settings, "GROQ_TIMEOUT_SECONDS", None)
+    if timeout:
+        return Groq(api_key=api_key, timeout=timeout)
     return Groq(api_key=api_key)
 
 

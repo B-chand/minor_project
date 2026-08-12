@@ -38,7 +38,46 @@ class Organization(BaseModel):
         null=True
     )
 
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text=(
+            "Unique Business Code (e.g. B1) that identifies this "
+            "tenant/organization at login."
+        ),
+    )
+
     is_active = models.BooleanField(default=True)
+
+    def _next_code(self):
+        """
+        Assign the next sequential business code (``B<n>``) that is not
+        already in use. Existing explicit codes are respected.
+        """
+
+        prefix = "B"
+        max_number = 0
+
+        codes = (
+            Organization.objects
+            .exclude(code__isnull=True)
+            .exclude(code="")
+            .values_list("code", flat=True)
+        )
+
+        for value in codes:
+            suffix = value[len(prefix):] if value.startswith(prefix) else ""
+            if suffix.isdigit():
+                max_number = max(int(suffix), max_number)
+
+        return f"{prefix}{max_number + 1}"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self._next_code()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

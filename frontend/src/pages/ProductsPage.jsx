@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Plus, Search, Filter, Edit2, Trash2, Tag, Image as ImageIcon } from 'lucide-react';
+import { Package, Plus, Search, Filter, Edit2, Trash2 } from 'lucide-react';
 import { productApi, categoryApi, fetchAllPages } from '../api';
 import { Modal, Loader, Pagination } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
@@ -12,6 +12,7 @@ export const ProductsPage = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,7 +47,7 @@ export const ProductsPage = () => {
     try {
       const params = {
         page,
-        search: search || undefined,
+        search: appliedSearch || undefined,
         category: selectedCategory || undefined,
       };
       const res = await productApi.getAll(params);
@@ -70,12 +71,13 @@ export const ProductsPage = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [page, selectedCategory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, selectedCategory, appliedSearch]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setAppliedSearch(search.trim());
     setPage(1);
-    fetchProducts();
   };
 
   const handleOpenModal = (product = null) => {
@@ -168,7 +170,7 @@ export const ProductsPage = () => {
       <div className="flex-between mb-6">
         <div>
           <h1 className="page-title">Products Directory</h1>
-          <p className="page-subtitle">Manage organization items, prices, SKUs, and images</p>
+          <p className="page-subtitle">Product information and pricing — physical stock is managed separately</p>
         </div>
         <button className="btn btn-primary" onClick={() => handleOpenModal()}>
           <Plus size={18} /> Add Product
@@ -442,6 +444,20 @@ export const ProductsPage = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
+          </div>
+
+          <div
+            style={{
+              fontSize: '0.8125rem',
+              color: 'var(--text-muted)',
+              background: 'var(--bg-tertiary)',
+              borderRadius: '8px',
+              padding: '0.6rem 0.85rem',
+              marginBottom: '1.5rem',
+            }}
+          >
+            Adding a product only creates its product definition — it does not create physical stock.
+            Enter stock afterwards using Opening Stock, Purchases (stock received), or Stock Adjustments.
           </div>
 
           <div className="modal-footer">
