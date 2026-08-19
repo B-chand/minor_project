@@ -150,7 +150,7 @@
 
      ## 🤖 AI-Powered Features
 
-     AI in INVENTO is implemented **inside the Django backend** (the `ai` application) rather than as a separate microservice. The AI provider used is **Groq**, via the official `groq` Python SDK, with the default model **`llama-3.3-70b-versatile`** (configured with `GROQ_MODEL`). All AI endpoints are tenant-scoped — the organization always comes from the authenticated user.
+     AI in INVENTO is implemented **inside the Django backend** (the `ai` application) rather than as a separate microservice. The AI provider used is **Groq**, via the official `groq` Python SDK, with the default model **`openai/gpt-oss-120b`** (configured with `GROQ_MODEL`). All AI endpoints are tenant-scoped — the organization always comes from the authenticated user.
 
      Implemented AI features:
 
@@ -270,7 +270,7 @@
 
      ### AI / Machine Learning
 
-     - **Groq** (`groq` SDK) — LLM-backed chat assistant (Llama 3.3-70B)
+     - **Groq** (`groq` SDK) — LLM-backed chat assistant (GPT-OSS-120B)
      - scikit-learn — demand forecasting (`RandomForestRegressor`)
      - pandas and numpy — data manipulation for forecasting
      - joblib — sklearn utilities
@@ -390,9 +390,9 @@
      DB_HOST=localhost
      DB_PORT=5432
 
-     # Groq AI (optional — required for the AI chat assistant)
-     GROQ_API_KEY=your-groq-api-key
-     GROQ_MODEL=llama-3.3-70b-versatile
+# Groq AI (optional — required for the AI chat assistant)
+GROQ_API_KEY=your-groq-api-key
+GROQ_MODEL=openai/gpt-oss-120b
      ```
 
      Additional optional variables supported by `config/settings.py`: `ALLOWED_HOSTS`, `CORS_ALLOW_ALL_ORIGINS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `GROQ_MAX_TOOL_ROUNDS`, `GROQ_TIMEOUT_SECONDS`, `LOG_LEVEL`.

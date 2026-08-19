@@ -214,6 +214,21 @@ class UserSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    organization_email = serializers.EmailField(
+        source="organization.email",
+        read_only=True,
+    )
+
+    organization_phone = serializers.CharField(
+        source="organization.phone",
+        read_only=True,
+    )
+
+    organization_address = serializers.CharField(
+        source="organization.address",
+        read_only=True,
+    )
+
     class Meta:
         model = User
 
@@ -227,6 +242,9 @@ class UserSerializer(serializers.ModelSerializer):
             "organization_id",
             "organization_code",
             "business_code",
+            "organization_email",
+            "organization_phone",
+            "organization_address",
             "is_verified",
             "created_at",
         ]

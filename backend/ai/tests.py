@@ -318,7 +318,26 @@ class GroqCallLoopTests(TestCase):
         first_call = client.chat.completions.calls[0]
         tool_names = {t["function"]["name"] for t in first_call["tools"]}
         self.assertEqual(tool_names, set(_registry.keys()))
-        self.assertEqual(first_call["model"], "llama-3.3-70b-versatile")
+        self.assertEqual(first_call["model"], "openai/gpt-oss-120b")
+
+    @override_settings(
+        GROQ_API_KEY="test-not-real", GROQ_MODEL="custom-model-for-tests"
+    )
+    def test_loop_uses_configured_groq_model(self):
+        """GROQ_MODEL is honoured without code changes."""
+        from ai.services import chatbot
+
+        org, user = self._org_and_user()
+
+        client = FakeClientRoot([_text_msg("Done.")])
+
+        with patch.object(chatbot, "_get_client", return_value=client):
+            chatbot.run_assistant("show me sales", user, org)
+
+        self.assertEqual(
+            client.chat.completions.calls[0]["model"],
+            "custom-model-for-tests",
+        )
 
     @override_settings(GROQ_API_KEY="test-not-real")
     def test_loop_forwards_tool_result_and_org_scoped_dispatch(self):

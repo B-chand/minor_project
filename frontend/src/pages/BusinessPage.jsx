@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Save } from 'lucide-react';
-import { businessApi } from '../api';
+import { Save, Building2 } from 'lucide-react';
+import { businessApi, authApi } from '../api';
 import { Loader } from '../components/common/UIComponents';
 import { useNotification } from '../context/NotificationContext';
 
@@ -9,6 +9,10 @@ export const BusinessPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    organization_name: '',
+    organization_email: '',
+    organization_phone: '',
+    organization_address: '',
     business_type: 'RETAIL',
     pan_number: '',
     vat_number: '',
@@ -28,6 +32,10 @@ export const BusinessPage = () => {
         const p = items[0];
         setProfile(p);
         setFormData({
+          organization_name: p.organization_name || '',
+          organization_email: p.organization_email || '',
+          organization_phone: p.organization_phone || '',
+          organization_address: p.organization_address || '',
           business_type: p.business_type || 'RETAIL',
           pan_number: p.pan_number || '',
           vat_number: p.vat_number || '',
@@ -35,6 +43,18 @@ export const BusinessPage = () => {
           currency: p.currency || 'NPR',
           invoice_prefix: p.invoice_prefix || 'INV',
         });
+      } else {
+        // No business profile exists yet — load the organization details from
+        // the authenticated user's own record so they are shown and preserved
+        // when the first profile is created.
+        const me = await authApi.getCurrentUser();
+        setFormData((prev) => ({
+          ...prev,
+          organization_name: me.data.organization || '',
+          organization_email: me.data.organization_email || '',
+          organization_phone: me.data.organization_phone || '',
+          organization_address: me.data.organization_address || '',
+        }));
       }
     } catch (err) {
       showToast('Failed to load business profile.', 'error');
@@ -73,12 +93,69 @@ export const BusinessPage = () => {
       <div className="flex-between mb-6">
         <div>
           <h1 className="page-title">Business Profile & Settings</h1>
-          <p className="page-subtitle">Configure organization currency, Tax IDs (PAN/VAT), and invoice prefixes</p>
+          <p className="page-subtitle">Manage organization details and configure currency, Tax IDs (PAN/VAT), and invoice prefixes</p>
         </div>
       </div>
 
       <div className="glass-card">
         <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '1rem' }}>
+              <Building2 size={18} color="var(--accent-primary)" />
+              Business Information
+            </h2>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Organization/Business Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Your business name"
+                  value={formData.organization_name}
+                  onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Organization Email</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="business@company.com"
+                  value={formData.organization_email}
+                  onChange={(e) => setFormData({ ...formData, organization_email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Organization Phone</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="+977 98XXXXXXXX"
+                  value={formData.organization_phone}
+                  onChange={(e) => setFormData({ ...formData, organization_phone: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Address</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Business address"
+                  value={formData.organization_address}
+                  onChange={(e) => setFormData({ ...formData, organization_address: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0 0 1.5rem' }} />
+
           <div className="grid-2 mb-4">
             <div className="form-group">
               <label className="form-label">Business Type</label>

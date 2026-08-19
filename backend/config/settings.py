@@ -180,11 +180,15 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", DEBUG)
+# Local Vite development origins and the deployed Vercel frontend. Keep the
+# allow-list tight: never fall back to unrestricted CORS in production. Set
+# CORS_ALLOWED_ORIGINS explicitly to override this default list.
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173"
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "https://minor-project-lime-seven.vercel.app"
     ).split(",")
     if origin.strip()
 ]
@@ -198,7 +202,8 @@ CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CSRF_TRUSTED_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173"
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "https://minor-project-lime-seven.vercel.app"
     ).split(",")
     if origin.strip()
 ]
@@ -215,7 +220,11 @@ SIMPLE_JWT = {
 
 # Groq AI
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# ``llama-3.3-70b-versatile`` (the previous default) was deprecated and shut
+# down by Groq. ``openai/gpt-oss-120b`` is the current Groq-hosted replacement
+# that supports chat completions and function/tool calling. Override via the
+# GROQ_MODEL environment variable without any code changes.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_MAX_TOOL_ROUNDS = int(os.getenv("GROQ_MAX_TOOL_ROUNDS", "4"))
 GROQ_TIMEOUT_SECONDS = float(os.getenv("GROQ_TIMEOUT_SECONDS", "60"))
 

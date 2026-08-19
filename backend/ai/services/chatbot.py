@@ -382,7 +382,7 @@ def run_assistant(user_message, user, organization, history=None):
     user/assistant turns used only for conversational context.
     """
     api_key = getattr(settings, "GROQ_API_KEY", "")
-    model = getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile")
+    model = getattr(settings, "GROQ_MODEL", "openai/gpt-oss-120b")
     max_rounds = getattr(settings, "GROQ_MAX_TOOL_ROUNDS", 4)
 
     if not api_key:
